@@ -25,8 +25,9 @@ COPY ASR/requirements.prod.txt .
 
 # 安装依赖
 # --no-cache-dir: 不缓存包，减小镜像大小
+# -i: 指定使用国内的 PyPI 镜像源，加速下载
 # --index-url: 为 tflite-runtime 指定特殊的包索引
-RUN pip install --no-cache-dir -r requirements.prod.txt \
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.prod.txt \
     && pip install --no-cache-dir --index-url https://google-coral.github.io/py-repo/ tflite-runtime
 
 # 复制配置文件和应用程序代码
