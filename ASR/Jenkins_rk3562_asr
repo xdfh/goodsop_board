@@ -13,7 +13,7 @@ pipeline {
         HARBOR_URL      = '192.168.1.161' // 修正 Harbor URL，不带端口
         HARBOR_PROJECT  = 'goodsop_board_asr'
         HARBOR_CREDENTIALS_ID = 'harbor-cred' // 修正为 Jenkins 中实际存在的凭据 ID
-        IMAGE_NAME      = 'goodsop-asr-service'
+        IMAGE_NAME      = 'goodsop-asr-rk3562'
         
         // --- 应用特定配置 ---
         APP_ENV_NAME    = 'ENV_FOR_DYNACONF'
