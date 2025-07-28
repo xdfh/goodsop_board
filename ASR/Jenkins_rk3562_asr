@@ -7,10 +7,10 @@ pipeline {
         HARBOR_PROJECT  = 'goodsop'
         HARBOR_CREDENTIALS_ID = 'harbor-goodsop' // 请确保在 Jenkins 中已创建此凭据
         IMAGE_NAME      = 'goodsop-asr-service'
-
+        
         // --- 应用特定配置 ---
         // 通过 Docker build-arg 将此环境变量传递给 Dockerfile
-        APP_ENV_NAME    = 'ENV_FOR_DYNACONF'
+        APP_ENV_NAME    = 'ENV_FOR_DYNACONF' 
         APP_ENV_VALUE   = 'dev03'
     }
 
@@ -22,7 +22,7 @@ pipeline {
                     env.IMAGE_TAG = "${env.BUILD_NUMBER}"
                     // 定义完整的 Harbor 镜像名称
                     env.FULL_IMAGE_NAME = "${HARBOR_URL}/${HARBOR_PROJECT}/${IMAGE_NAME}:${IMAGE_TAG}"
-
+                    
                     echo "----------------------------------------"
                     echo "项目名称: ${IMAGE_NAME}"
                     echo "构建版本: ${IMAGE_TAG}"
@@ -32,7 +32,7 @@ pipeline {
                 }
             }
         }
-
+        
         stage('Checkout') {
             steps {
                 // 从 Git 仓库拉取代码
@@ -52,7 +52,7 @@ pipeline {
                 }
             }
         }
-
+        
         stage('Login to Harbor') {
             steps {
                 echo "登录到 Harbor: ${HARBOR_URL}"
@@ -72,24 +72,15 @@ pipeline {
             }
         }
     }
-
+    
     post {
         always {
-            stage('Cleanup') {
-                steps {
-                    echo "清理本次构建的 Docker 镜像..."
-                    // 删除本地构建的镜像
-                    sh "docker rmi ${FULL_IMAGE_NAME}"
-                    echo "清理完成。"
-                }
-            }
-            // 登出 Harbor
-            stage('Logout from Harbor') {
-                 steps {
-                    echo "从 Harbor 登出..."
-                    sh "docker logout ${HARBOR_URL}"
-                }
-            }
+            // post 块中直接执行 steps，不能再嵌套 stage
+            echo "清理本次构建的 Docker 镜像..."
+            sh "docker rmi ${FULL_IMAGE_NAME}"
+            
+            echo "从 Harbor 登出..."
+            sh "docker logout ${HARBOR_URL}"
         }
     }
 }
