@@ -1,7 +1,7 @@
-# 使用官方 Python 3.9 slim 镜像作为基础镜像
+# 使用国内的 Python 3.9 slim 镜像作为基础镜像，以规避网络问题
 # 'slim' 版本以减小镜像体积
 # 'bookworm' 对应 Debian 12，与目标操作系统匹配
-FROM python:3.9-slim-bookworm
+FROM docker.m.daocloud.io/python:3.9-slim-bookworm
 
 # --- 接收构建参数 ---
 # 定义一个 ARG 来接收 Jenkins 传递过来的环境名称
