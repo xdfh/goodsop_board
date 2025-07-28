@@ -55,10 +55,25 @@ pipeline {
             steps {
                 script {
                     echo "开始为 [${params.TARGET_ENV}] 环境构建 Docker 镜像 (目标平台: linux/arm64)..."
-                    // 使用 docker buildx 进行跨平台构建
-                    // --platform: 指定目标 CPU 架构
-                    // --load: 将构建好的镜像加载到本地 Docker daemon，以便后续推送
-                    sh "docker buildx build --platform linux/arm64 --load -f ASR/Dockerfile --build-arg ${APP_ENV_NAME}=${params.TARGET_ENV} -t ${MAIN_IMAGE_NAME} ."
+                    
+                    // 定义缓存目录
+                    def cacheDir = "/var/jenkins_home/docker_cache/asr"
+                    sh "mkdir -p ${cacheDir}"
+                    
+                    // 使用 docker buildx 进行跨平台构建，并添加缓存配置
+                    // --cache-to: 将构建缓存导出到本地目录
+                    // --cache-from: 从本地目录加载构建缓存
+                    sh """
+                    docker buildx build \\
+                        --platform linux/arm64 \\
+                        --load \\
+                        -f ASR/Dockerfile \\
+                        --build-arg ${APP_ENV_NAME}=${params.TARGET_ENV} \\
+                        --tag ${MAIN_IMAGE_NAME} \\
+                        --cache-to type=local,dest=${cacheDir} \\
+                        --cache-from type=local,src=${cacheDir} \\
+                        .
+                    """
                     echo "Docker 镜像构建完成。"
                 }
             }
