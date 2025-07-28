@@ -54,9 +54,11 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    echo "开始为 [${params.TARGET_ENV}] 环境构建 Docker 镜像..."
-                    // 构建时直接使用最终的主镜像名进行标记
-                    sh "docker build -f ASR/Dockerfile --build-arg ${APP_ENV_NAME}=${params.TARGET_ENV} -t ${MAIN_IMAGE_NAME} ."
+                    echo "开始为 [${params.TARGET_ENV}] 环境构建 Docker 镜像 (目标平台: linux/arm64)..."
+                    // 使用 docker buildx 进行跨平台构建
+                    // --platform: 指定目标 CPU 架构
+                    // --load: 将构建好的镜像加载到本地 Docker daemon，以便后续推送
+                    sh "docker buildx build --platform linux/arm64 --load -f ASR/Dockerfile --build-arg ${APP_ENV_NAME}=${params.TARGET_ENV} -t ${MAIN_IMAGE_NAME} ."
                     echo "Docker 镜像构建完成。"
                 }
             }
