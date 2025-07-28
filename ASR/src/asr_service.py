@@ -1,54 +1,18 @@
 import numpy as np
-import tensorflow as tf
+from tflite_runtime.interpreter import Interpreter
 import sys
 import os
 
-def find_vulkan_delegate_path():
-    """动态查找 IREE Vulkan 代理路径，以适应 tf-nightly 的 API 变动。"""
-    if not hasattr(tf, 'lite') or not hasattr(tf.lite, 'experimental'):
-        return None
-    
-    # 遍历 experimental 命名空间中的所有属性
-    for attr_name in dir(tf.lite.experimental):
-        if 'VULKAN' in attr_name.upper() and 'DELEGATE' in attr_name.upper() and 'PATH' in attr_name.upper():
-            path = getattr(tf.lite.experimental, attr_name)
-            if isinstance(path, str) and os.path.exists(path):
-                print(f"INFO: 动态找到 Vulkan 代理路径变量 '{attr_name}'，路径为: {path}")
-                return path
-    return None
-
 class ASRService:
     def __init__(self, model_path: str, device: str = "cpu"):
-        delegates = None
         print(f"配置的目标设备是: {device.upper()}")
 
-        if device.lower() == "gpu":
-            if sys.platform == "win32":
-                print("INFO: 检测到 Windows 系统，将尝试加载 IREE Vulkan GPU 代理。")
-                try:
-                    delegate_path = find_vulkan_delegate_path()
-                    if delegate_path:
-                        delegates = [tf.lite.load_delegate(delegate_path)]
-                        print("成功加载 IREE Vulkan GPU 代理。模型将尝试在 GPU 上运行。")
-                    else:
-                        raise RuntimeError("在 tf.lite.experimental 中未找到可用的 IREE Vulkan 代理路径。")
-                except Exception as e:
-                    print(f"警告: 加载 IREE Vulkan GPU 代理失败，将回退到 CPU。")
-                    print(f"   - 错误原因: {e}")
-                    print(f"   - 请确保已安装 'tf-nightly' 包，并且您的 GPU 驱动支持 Vulkan。")
-                    delegates = None
-            else:
-                # 在 Linux 等其他系统上，可以继续尝试使用旧的 GpuDelegate
-                try:
-                    delegates = [tf.lite.experimental.GpuDelegate()]
-                    print("成功加载 GpuDelegate。模型将尝试在 GPU 上运行。")
-                except Exception as e:
-                    print(f"警告: 加载 GpuDelegate 代理失败，将回退到 CPU。")
-                    print(f"   - 错误原因: {e}")
-                    delegates = None
+        # 在生产环境中，我们只关心 CPU 或 NPU，并直接使用 tflite_runtime
+        # 移除了所有对完整 tensorflow 包的依赖和 GPU 代理逻辑
+        delegates = None
         
         # 此处可以为将来的 NPU 支持预留逻辑
-        elif device.lower() == "npu":
+        if device.lower() == "npu":
             print("警告: NPU 代理逻辑尚未实现，将回退到 CPU。")
             # try:
             #     delegates = [tf.lite.load_delegate('libedgetpu.so.1')]
@@ -57,15 +21,15 @@ class ASRService:
             delegates = None
 
         try:
-            # 使用传入的 model_path 和计算代理初始化解释器
-            self.interpreter = tf.lite.Interpreter(
+            # 使用 tflite_runtime 的 Interpreter
+            self.interpreter = Interpreter(
                 model_path=model_path,
                 experimental_delegates=delegates
             )
         except Exception as e:
             print(f"错误: 使用指定代理 ({device}) 初始化解释器失败，将强制使用 CPU。")
             print(f"   - 错误原因: {e}")
-            self.interpreter = tf.lite.Interpreter(model_path=model_path)
+            self.interpreter = Interpreter(model_path=model_path)
             
         self.interpreter.allocate_tensors()
         self.input_details = self.interpreter.get_input_details()
