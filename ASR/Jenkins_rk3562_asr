@@ -1,0 +1,95 @@
+pipeline {
+    agent any
+
+    environment {
+        // --- 可配置变量 ---
+        HARBOR_URL      = '192.168.1.161:80'
+        HARBOR_PROJECT  = 'goodsop'
+        HARBOR_CREDENTIALS_ID = 'harbor-goodsop' // 请确保在 Jenkins 中已创建此凭据
+        IMAGE_NAME      = 'goodsop-asr-service'
+        
+        // --- 应用特定配置 ---
+        // 通过 Docker build-arg 将此环境变量传递给 Dockerfile
+        APP_ENV_NAME    = 'ENV_FOR_DYNACONF' 
+        APP_ENV_VALUE   = 'dev03'
+    }
+
+    stages {
+        stage('Preparation') {
+            steps {
+                script {
+                    // 使用 Jenkins build number 作为 tag
+                    env.IMAGE_TAG = "${env.BUILD_NUMBER}"
+                    // 定义完整的 Harbor 镜像名称
+                    env.FULL_IMAGE_NAME = "${HARBOR_URL}/${HARBOR_PROJECT}/${IMAGE_NAME}:${IMAGE_TAG}"
+                    
+                    echo "----------------------------------------"
+                    echo "项目名称: ${IMAGE_NAME}"
+                    echo "构建版本: ${IMAGE_TAG}"
+                    echo "目标镜像: ${FULL_IMAGE_NAME}"
+                    echo "部署环境: ${APP_ENV_VALUE}"
+                    echo "----------------------------------------"
+                }
+            }
+        }
+        
+        stage('Checkout') {
+            steps {
+                // 从 Git 仓库拉取代码
+                checkout scm
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    echo "开始构建 Docker 镜像..."
+                    // -f 指定 Dockerfile 的路径
+                    // --build-arg 传递环境变量，用于在构建时指定应用环境
+                    // -t 为镜像打上 tag
+                    sh "docker build -f ASR/Dockerfile --build-arg ${APP_ENV_NAME}=${APP_ENV_VALUE} -t ${FULL_IMAGE_NAME} ."
+                    echo "Docker 镜像构建完成。"
+                }
+            }
+        }
+        
+        stage('Login to Harbor') {
+            steps {
+                echo "登录到 Harbor: ${HARBOR_URL}"
+                // 使用 withCredentials 块安全地注入凭据
+                withCredentials([usernamePassword(credentialsId: HARBOR_CREDENTIALS_ID, passwordVariable: 'HARBOR_PASS', usernameVariable: 'HARBOR_USER')]) {
+                    sh "docker login ${HARBOR_URL} -u ${HARBOR_USER} -p ${HARBOR_PASS}"
+                }
+                echo "Harbor 登录成功。"
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                echo "开始推送镜像到 Harbor..."
+                sh "docker push ${FULL_IMAGE_NAME}"
+                echo "镜像推送成功: ${FULL_IMAGE_NAME}"
+            }
+        }
+    }
+    
+    post {
+        always {
+            stage('Cleanup') {
+                steps {
+                    echo "清理本次构建的 Docker 镜像..."
+                    // 删除本地构建的镜像
+                    sh "docker rmi ${FULL_IMAGE_NAME}"
+                    echo "清理完成。"
+                }
+            }
+            // 登出 Harbor
+            stage('Logout from Harbor') {
+                 steps {
+                    echo "从 Harbor 登出..."
+                    sh "docker logout ${HARBOR_URL}"
+                }
+            }
+        }
+    }
+}
