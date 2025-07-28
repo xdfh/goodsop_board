@@ -56,8 +56,8 @@ pipeline {
                 script {
                     echo "开始为 [${params.TARGET_ENV}] 环境构建 Docker 镜像 (目标平台: linux/arm64)..."
                     
-                    // 定义缓存目录
-                    def cacheDir = "/var/jenkins_home/docker_cache/asr"
+                    // 定义缓存目录，使用 agent 的工作目录，确保 jenkins 用户有权限
+                    def cacheDir = "/home/jenkins/agent/docker_cache/asr"
                     sh "mkdir -p ${cacheDir}"
                     
                     // 使用 docker buildx 进行跨平台构建，并添加缓存配置
