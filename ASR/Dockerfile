@@ -35,9 +35,6 @@ COPY ASR/config ./config
 # 将 src 目录完整复制过去
 COPY ASR/src ./src
 
-# 复制模型文件
-COPY ASR/wav2vec2_quantized.tflite ./
-
 # 向容器外部暴露 8000 端口
 EXPOSE 8000
 
