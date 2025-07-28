@@ -19,26 +19,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# 先复制生产环境的依赖文件，以利用 Docker 的层缓存机制
-COPY requirements.prod.txt .
+# 复制项目的依赖文件
+# 将生产环境的依赖文件复制到容器中
+COPY ASR/requirements.prod.txt .
 
-# 安装 requirements.prod.txt 中指定的所有包
-# 我们需要为 ARM64 架构（用于 RK3562）找到正确的 tflite-runtime wheel文件。
-# 下面的 URL 适用于 Debian Bullseye (Debian 11) ARM64 上的 Python 3.9，通常是兼容的。
-# 如果在目标设备上失败，可能需要更新此 URL。
-# 对于 Debian 12 (Bookworm)，您可能需要寻找一个更新的 wheel 文件。
+# 安装依赖
+# --no-cache-dir: 不缓存包，减小镜像大小
+# --index-url: 为 tflite-runtime 指定特殊的包索引
 RUN pip install --no-cache-dir -r requirements.prod.txt \
     && pip install --no-cache-dir --index-url https://google-coral.github.io/py-repo/ tflite-runtime
 
-# 将应用程序的其余代码复制到容器中
-COPY ./src ./src
-COPY ./wav2vec2_quantized.tflite ./
+# 复制配置文件和应用程序代码
+# 将 config 目录完整复制过去
+COPY ASR/config ./config
+# 将 src 目录完整复制过去
+COPY ASR/src ./src
+
+# 复制模型文件
+COPY ASR/wav2vec2_quantized.tflite ./
 
 # 向容器外部暴露 8000 端口
 EXPOSE 8000
 
-# 定义运行应用程序的命令
-# 服务将可以通过容器外部的 8000 端口访问
-# 在 Docker 中不使用 .env 文件；配置应通过环境变量传递。
-# 我们在这里直接设置模型路径。
-CMD ["sh", "-c", "MODEL_PATH=/app/wav2vec2_quantized.tflite python -m src.main"] 
+# 容器启动时执行的命令
+# 使用 python -m src.main 来启动 uvicorn 服务
+CMD ["python", "-m", "src.main"] 

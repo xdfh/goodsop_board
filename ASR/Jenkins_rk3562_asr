@@ -1,15 +1,18 @@
 pipeline {
     agent any
 
+    parameters {
+        string(name: 'MANUAL_VERSION', defaultValue: '', description: '（可选）手动指定一个版本号作为镜像标签，例如 v1.0.0')
+    }
+
     environment {
         // --- 可配置变量 ---
         HARBOR_URL      = '192.168.1.161:80'
-        HARBOR_PROJECT  = 'goodsop'
-        HARBOR_CREDENTIALS_ID = 'harbor-goodsop' // 请确保在 Jenkins 中已创建此凭据
+        HARBOR_PROJECT  = 'goodsop_board_asr'
+        HARBOR_CREDENTIALS_ID = 'harbor-goodsop'
         IMAGE_NAME      = 'goodsop-asr-service'
         
         // --- 应用特定配置 ---
-        // 通过 Docker build-arg 将此环境变量传递给 Dockerfile
         APP_ENV_NAME    = 'ENV_FOR_DYNACONF' 
         APP_ENV_VALUE   = 'dev03'
     }
@@ -18,15 +21,27 @@ pipeline {
         stage('Preparation') {
             steps {
                 script {
-                    // 使用 Jenkins build number 作为 tag
-                    env.IMAGE_TAG = "${env.BUILD_NUMBER}"
-                    // 定义完整的 Harbor 镜像名称
-                    env.FULL_IMAGE_NAME = "${HARBOR_URL}/${HARBOR_PROJECT}/${IMAGE_NAME}:${IMAGE_TAG}"
+                    // 1. 生成 YYYYMMDD_HHmmss 格式的时间戳标签
+                    def timestamp = new Date().format('yyyyMMdd_HHmmss', TimeZone.getTimeZone('Asia/Shanghai'))
+                    env.TIMESTAMP_TAG = timestamp
+                    
+                    // --- 定义所有需要生成的镜像名称 ---
+                    // a) 基于时间戳的主镜像名称
+                    env.MAIN_IMAGE_NAME = "${HARBOR_URL}/${HARBOR_PROJECT}/${IMAGE_NAME}:${TIMESTAMP_TAG}"
+                    // b) 'latest' 镜像名称
+                    env.LATEST_IMAGE_NAME = "${HARBOR_URL}/${HARBOR_PROJECT}/${IMAGE_NAME}:latest"
                     
                     echo "----------------------------------------"
                     echo "项目名称: ${IMAGE_NAME}"
-                    echo "构建版本: ${IMAGE_TAG}"
-                    echo "目标镜像: ${FULL_IMAGE_NAME}"
+                    echo "主镜像 (时间戳): ${MAIN_IMAGE_NAME}"
+                    echo "最新镜像 (latest): ${LATEST_IMAGE_NAME}"
+
+                    // c) 如果用户手动输入了版本，则定义该镜像名称
+                    if (params.MANUAL_VERSION && params.MANUAL_VERSION.trim()) {
+                        env.MANUAL_VERSION_IMAGE_NAME = "${HARBOR_URL}/${HARBOR_PROJECT}/${IMAGE_NAME}:${params.MANUAL_VERSION.trim()}"
+                        echo "手动版本镜像: ${MANUAL_VERSION_IMAGE_NAME}"
+                    }
+                    
                     echo "部署环境: ${APP_ENV_VALUE}"
                     echo "----------------------------------------"
                 }
@@ -35,7 +50,6 @@ pipeline {
         
         stage('Checkout') {
             steps {
-                // 从 Git 仓库拉取代码
                 checkout scm
             }
         }
@@ -43,11 +57,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    echo "开始构建 Docker 镜像..."
-                    // -f 指定 Dockerfile 的路径
-                    // --build-arg 传递环境变量，用于在构建时指定应用环境
-                    // -t 为镜像打上 tag
-                    sh "docker build -f ASR/Dockerfile --build-arg ${APP_ENV_NAME}=${APP_ENV_VALUE} -t ${FULL_IMAGE_NAME} ."
+                    echo "开始构建 Docker 镜像: ${MAIN_IMAGE_NAME}"
+                    sh "docker build -f ASR/Dockerfile --build-arg ${APP_ENV_NAME}=${APP_ENV_VALUE} -t ${MAIN_IMAGE_NAME} ."
                     echo "Docker 镜像构建完成。"
                 }
             }
@@ -56,7 +67,6 @@ pipeline {
         stage('Login to Harbor') {
             steps {
                 echo "登录到 Harbor: ${HARBOR_URL}"
-                // 使用 withCredentials 块安全地注入凭据
                 withCredentials([usernamePassword(credentialsId: HARBOR_CREDENTIALS_ID, passwordVariable: 'HARBOR_PASS', usernameVariable: 'HARBOR_USER')]) {
                     sh "docker login ${HARBOR_URL} -u ${HARBOR_USER} -p ${HARBOR_PASS}"
                 }
@@ -64,23 +74,47 @@ pipeline {
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Tag and Push Images') {
             steps {
-                echo "开始推送镜像到 Harbor..."
-                sh "docker push ${FULL_IMAGE_NAME}"
-                echo "镜像推送成功: ${FULL_IMAGE_NAME}"
+                script {
+                    // --- 标记并推送所有需要的镜像 ---
+                    
+                    // 1. 推送主镜像 (时间戳版本)
+                    echo "开始推送主镜像: ${MAIN_IMAGE_NAME}"
+                    sh "docker push ${MAIN_IMAGE_NAME}"
+                    
+                    // 2. 标记并推送 'latest' 镜像
+                    echo "标记并推送 latest 镜像: ${LATEST_IMAGE_NAME}"
+                    sh "docker tag ${MAIN_IMAGE_NAME} ${LATEST_IMAGE_NAME}"
+                    sh "docker push ${LATEST_IMAGE_NAME}"
+
+                    // 3. 如果有手动版本，则标记并推送
+                    if (env.MANUAL_VERSION_IMAGE_NAME) {
+                        echo "标记并推送手动版本镜像: ${MANUAL_VERSION_IMAGE_NAME}"
+                        sh "docker tag ${MAIN_IMAGE_NAME} ${MANUAL_VERSION_IMAGE_NAME}"
+                        sh "docker push ${MANUAL_VERSION_IMAGE_NAME}"
+                    }
+                    
+                    echo "所有镜像推送完成。"
+                }
             }
         }
     }
     
     post {
         always {
-            // post 块中直接执行 steps，不能再嵌套 stage
-            echo "清理本次构建的 Docker 镜像..."
-            sh "docker rmi ${FULL_IMAGE_NAME}"
+            // 清理本地镜像
+            echo "开始清理本地镜像..."
+            sh "docker rmi ${MAIN_IMAGE_NAME}"
+            sh "docker rmi ${LATEST_IMAGE_NAME}"
+            if (env.MANUAL_VERSION_IMAGE_NAME) {
+                sh "docker rmi ${MANUAL_VERSION_IMAGE_NAME}"
+            }
             
+            // 登出 Harbor
             echo "从 Harbor 登出..."
             sh "docker logout ${HARBOR_URL}"
+            echo "清理完成。"
         }
     }
 }
