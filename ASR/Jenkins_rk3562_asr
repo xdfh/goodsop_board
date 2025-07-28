@@ -103,18 +103,20 @@ pipeline {
     
     post {
         always {
-            // 清理本地镜像
-            echo "开始清理本地镜像..."
-            sh "docker rmi ${MAIN_IMAGE_NAME}"
-            sh "docker rmi ${LATEST_IMAGE_NAME}"
-            if (env.MANUAL_VERSION_IMAGE_NAME) {
-                sh "docker rmi ${MANUAL_VERSION_IMAGE_NAME}"
+            script {
+                // 清理本地镜像
+                echo "开始清理本地镜像..."
+                sh "docker rmi ${MAIN_IMAGE_NAME}"
+                sh "docker rmi ${LATEST_IMAGE_NAME}"
+                if (env.MANUAL_VERSION_IMAGE_NAME) {
+                    sh "docker rmi ${MANUAL_VERSION_IMAGE_NAME}"
+                }
+                
+                // 登出 Harbor
+                echo "从 Harbor 登出..."
+                sh "docker logout ${HARBOR_URL}"
+                echo "清理完成。"
             }
-            
-            // 登出 Harbor
-            echo "从 Harbor 登出..."
-            sh "docker logout ${HARBOR_URL}"
-            echo "清理完成。"
         }
     }
 }
