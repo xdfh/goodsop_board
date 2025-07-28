@@ -3,7 +3,8 @@ pipeline {
 
     parameters {
         // 参考 goodsop_demo 的参数设计，提供环境和版本选择
-        choice(name: 'TARGET_ENV', choices: ['dev01', 'dev02', 'dev03'], defaultValue: 'dev03', description: '请选择要构建的目标环境')
+        // choice 的默认值是列表中的第一个元素
+        choice(name: 'TARGET_ENV', choices: ['dev03', 'dev01', 'dev02'], description: '请选择要构建的目标环境')
         string(name: 'VERSION', defaultValue: 'latest', description: '镜像版本号（tag），若为 "latest" 将自动生成时间戳')
     }
 
