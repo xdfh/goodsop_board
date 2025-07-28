@@ -97,9 +97,9 @@ pipeline {
             script {
                 // 清理本地镜像
                 echo "开始清理本地镜像..."
-                // 只需要清理主镜像和 latest 镜像
-                sh "docker rmi ${MAIN_IMAGE_NAME}"
-                sh "docker rmi ${LATEST_IMAGE_NAME}"
+                // 使用 || true 确保即使镜像不存在，该步骤也不会报错失败
+                sh "docker rmi ${MAIN_IMAGE_NAME} || true"
+                sh "docker rmi ${LATEST_IMAGE_NAME} || true"
                 
                 // 登出 Harbor
                 echo "从 Harbor 登出..."
