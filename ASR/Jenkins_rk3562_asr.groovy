@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent { label 'ubuntu-host' } // 指定在 Ubuntu 宿主机节点上运行
 
     parameters {
         // 参考 goodsop_demo 的参数设计，提供环境和版本选择
