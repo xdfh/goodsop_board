@@ -25,10 +25,15 @@ COPY ASR/requirements.prod.txt .
 
 # 安装依赖
 # --no-cache-dir: 不缓存包，减小镜像大小
-# -i: 指定使用国内的 PyPI 镜像源，加速下载
-# --index-url: 为 tflite-runtime 指定特殊的包索引
-RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.prod.txt \
-    && pip install --no-cache-dir --index-url https://google-coral.github.io/py-repo/ tflite-runtime
+# -i: 将主索引指向内部 Nexus 服务器，保证网络稳定
+# --extra-index-url: 为 tflite-runtime 添加一个额外的包索引
+# --trusted-host: 信任非 https 的 Nexus 源
+RUN pip install --no-cache-dir \
+    -r requirements.prod.txt \
+    tflite-runtime \
+    -i http://192.168.1.161:8081/repository/pypi-group/simple \
+    --extra-index-url https://google-coral.github.io/py-repo/ \
+    --trusted-host 192.168.1.161
 
 # 复制配置文件和应用程序代码
 # 将 config 目录完整复制过去
