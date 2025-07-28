@@ -1,0 +1,7 @@
+server:
+  port: 28802
+
+spring:
+  datasource:
+    url: jdbc:sqlite:rv1126.db
+    driver-class-name: org.sqlite.JDBC 

@@ -1,0 +1,35 @@
+server:
+  port: 28802
+
+spring:
+  datasource:
+    url: jdbc:sqlite:D:/java/sqlite-tools-win-x64-3500300/rv1126.db
+    driver-class-name: org.sqlite.JDBC
+
+# MyBatis-Plus 配置
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# MQTT配置
+mqtt:
+  server-url: mqtts://dev.goodsop.cn:8883
+  connection-timeout: 30
+  keep-alive-interval: 60
+  automatic-reconnect: true
+  clean-session: false
+  heartbeat-interval: 5
+  device-model: RV1126
+
+# 日志配置
+logging:
+  level:
+    com.goodsop.devboard.mqtt: DEBUG
+    org.eclipse.paho: WARN
+    org.hibernate: WARN

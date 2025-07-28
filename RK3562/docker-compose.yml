@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  sqlite-manager:
+    # 我们使用一个包含sqlite3命令行的轻量级镜像，方便进行数据库管理
+    # 使用 alpine/sqlite，这是一个官方维护的、支持 arm64 的轻量级镜像
+    image: alpine/sqlite
+    # 为容器指定一个固定的名称，方便直接使用`docker exec`命令
+    container_name: sqlite_manager_container
+    # 添加重启策略，实现开机自启动
+    restart: unless-stopped
+    # 保持容器在前台运行，以便我们可以随时进入
+    stdin_open: true
+    tty: true
+    volumes:
+      # 将名为sqlite-data的卷挂载到此容器，实现数据库文件的共享
+      - sqlite-data:/data
+    # 覆盖默认入口点，仅打印提示信息并保持运行
+    entrypoint: ["/bin/sh", "-c", "echo 'SQLite manager container has started. Use \"docker exec -it sqlite_manager_container sqlite3 /data/mydatabase.db\" to access the database.' && tail -f /dev/null"]
+
+# 定义数据卷
+volumes:
+  sqlite-data:
+    driver: local
+    driver_opts:
+      # 通过这个配置，Docker会将卷的数据存储在宿主机的`./db-data`目录下
+      # 这样做的好处是，您可以在宿主机上直接访问、备份或操作数据库文件
+      o: bind
+      type: none
+      # ${PWD} 会自动解析为docker-compose.yml文件所在的当前目录
+      device: ${PWD}/db-data 

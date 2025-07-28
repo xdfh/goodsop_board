@@ -1,0 +1,13 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+[角色]
+java/python 开发专家、运维专家
+
+[开发环境]
+win11,不支持 && 等 linux指令，注意一下
+要在win下面进行开发和调试
+
+

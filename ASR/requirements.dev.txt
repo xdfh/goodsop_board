@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-multipart
+tf-nightly
+librosa
+soundfile
+pydub
+python-dotenv
+pydantic-settings
+numpy<2.0
+dynaconf 

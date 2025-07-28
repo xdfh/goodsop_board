@@ -1,0 +1,14 @@
+server:
+  port: 28803
+
+spring:
+  datasource:
+    url: jdbc:sqlite:/home/cat/data/goodsop/db/goodsop_rk3562.db
+    driver-class-name: org.sqlite.JDBC
+    username:
+    password:
+  sql:
+    init:
+      platform: sqlite
+      schema-locations: classpath:schema-sqlite.sql
+      mode: always 

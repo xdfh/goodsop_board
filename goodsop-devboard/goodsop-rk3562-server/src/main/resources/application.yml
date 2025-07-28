@@ -1,0 +1,8 @@
+spring:
+  profiles:
+    active: dev
+  sql:
+    init:
+      platform: sqlite
+      schema-locations: classpath:schema-sqlite.sql
+      mode: always
