@@ -3,6 +3,7 @@
 import os
 import logging
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Dict, Any
 
 # 这是一个辅助函数，用于从 .py 文件加载配置
 def py_file_settings(settings: BaseSettings) -> dict:
@@ -50,11 +51,46 @@ class Settings(BaseSettings):
     # 为所有配置项提供类型提示和默认值
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    MODEL_DIR: str = "models/default_model"
+    MODEL_DIR: str = "models/default_chinese_model"
     ASR_DEVICE: str = "cpu"
+    
+    # Logging configuration
+    LOGGING_CONFIG: Dict[str, Any] = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {
+                "()": "uvicorn.logging.DefaultFormatter",
+                "fmt": "%(levelprefix)s %(asctime)s - %(message)s",
+                "use_colors": None,
+            },
+            "access": {
+                "()": "uvicorn.logging.AccessFormatter",
+                "fmt": '%(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s',
+            },
+        },
+        "handlers": {
+            "default": {
+                "formatter": "default",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stderr",
+            },
+            "access": {
+                "formatter": "access",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+            },
+        },
+        "loggers": {
+            "": {"handlers": ["default"], "level": "INFO"},
+            "uvicorn.error": {"level": "INFO"},
+            "uvicorn.access": {"handlers": ["access"], "level": "INFO", "propagate": False},
+        },
+    }
 
     model_config = SettingsConfigDict(
-        # 允许从我们自定义的 py_file_settings 函数加载配置
+        env_file_encoding='utf-8',
+        # Pydantic-settings will call this function to load settings from python files.
         # @field: ... 表示这是 pydantic-settings 的一个特殊功能
         custom_settings_source=py_file_settings
     )
