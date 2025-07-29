@@ -1,20 +1,17 @@
-# 使用国内的 Python 3.9 slim 镜像作为基础镜像，以规避网络问题
-# 'slim' 版本以减小镜像体积
-# 'bookworm' 对应 Debian 12，与目标操作系统匹配
-FROM docker.m.daocloud.io/python:3.9-slim-bookworm
+# 使用官方 Python 3.9 slim-bookworm 镜像作为基础
+# slim 版本包含运行 Python 应用所需的最少包
+# bookworm 是 Debian 12 的代号
+FROM python:3.9-slim-bookworm
 
-# --- 接收构建参数 ---
-# 定义一个 ARG 来接收 Jenkins 传递过来的环境名称
-ARG ENV_FOR_DYNACONF
-# 将接收到的 ARG 设置为容器的环境变量
-ENV ENV_FOR_DYNACONF=${ENV_FOR_DYNACONF}
+# 设置非交互式前端，防止 apt-get 在构建过程中请求用户输入
+ENV DEBIAN_FRONTEND=noninteractive
 
-# 设置容器内的工作目录
-WORKDIR /app
+# 新增：更换为国内的 apt 软件源以加速构建
+RUN sed -i 's|http://deb.debian.org/debian/|http://mirrors.tuna.tsinghua.edu.cn/debian/|g' /etc/apt/sources.list.d/debian.sources
 
-# 安装应用所需的系统依赖
-# - ffmpeg 对于音频处理（MP3解码）至关重要
-# - 对于某些可能从源码编译的Python包，安装 build-essential 是一个好习惯
+# 安装 ffmpeg 和其他可能需要的系统依赖
+# --no-install-recommends: 不安装推荐的包，保持镜像体积小
+# apt-get clean && rm -rf /var/lib/apt/lists/*: 清理 apt 缓存，减小最终镜像大小
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
