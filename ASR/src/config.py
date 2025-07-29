@@ -82,9 +82,9 @@ class Settings(BaseSettings):
             },
         },
         "loggers": {
-            "": {"handlers": ["default"], "level": "INFO"},
-            "uvicorn.error": {"level": "INFO"},
-            "uvicorn.access": {"handlers": ["access"], "level": "INFO", "propagate": False},
+            "": {"handlers": ["default"], "level": logging.INFO},
+            "uvicorn.error": {"level": logging.INFO},
+            "uvicorn.access": {"handlers": ["access"], "level": logging.INFO, "propagate": False},
         },
     }
 
