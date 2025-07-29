@@ -27,9 +27,9 @@ COPY ASR/requirements.prod.txt .
 # --no-cache-dir: 不缓存包，减小镜像大小
 # -i: 将唯一的索引指向内部 Nexus 的 pypi-group，它现在可以提供所有来源的包
 # --trusted-host: 信任非 https 的 Nexus 源
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
     -r requirements.prod.txt \
-    tflite-runtime \
     -i http://192.168.1.161:8081/repository/pypi-group/simple \
     --trusted-host 192.168.1.161
 
