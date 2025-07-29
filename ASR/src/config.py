@@ -1,41 +1,63 @@
-# src/config.py
+# -*- coding: utf-8 -*-
+
 import os
-from dynaconf import Dynaconf
+import logging
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# --- 显式文件加载逻辑 ---
-ENV_VAR = "ENV_FOR_DYNACONF"
-# 默认为 "dev01" 环境
-active_env = os.environ.get(ENV_VAR, "dev01").lower()
-
-print("-" * 50)
-print(f"INFO: 检测到当前环境为: '{active_env}'")
-
-# 总是先加载基础配置文件
-files_to_load = [os.path.join(ROOT_DIR, 'config', 'default.py')]
-
-# 然后根据环境，添加特定的配置文件
-env_file_path = os.path.join(ROOT_DIR, 'config', f'{active_env}.py')
-if os.path.exists(env_file_path):
-    files_to_load.append(env_file_path)
-    print(f"INFO: 准备加载配置文件: {env_file_path}")
-else:
-    # 这是一个安全保障，如果指定了不存在的环境，程序会警告
-    print(f"警告: 未找到环境 '{active_env}' 的配置文件: {env_file_path}")
-    print(f"INFO: 将仅使用 'default.py' 的配置。")
-print("-" * 50)
-
-
-settings = Dynaconf(
-    # 设置环境变量的前缀为 "ASR"
-    envvar_prefix="ASR",
+# 这是一个辅助函数，用于从 .py 文件加载配置
+def py_file_settings(settings: BaseSettings) -> dict:
+    config = {}
     
-    # 显式地提供要加载的文件列表，不再使用自动环境切换功能。
-    settings_files=files_to_load,
-)
+    # 1. 确定环境并找到配置文件
+    # 我们继续使用 Jenkins/Dockerfile 中传入的 ENV_FOR_DYNACONF 环境变量
+    env = os.getenv("ENV_FOR_DYNACONF", "dev01").lower()
+    config_dir = os.path.join(os.path.dirname(__file__), '..', 'config')
+    
+    default_settings_path = os.path.join(config_dir, 'default.py')
+    env_settings_path = os.path.join(config_dir, f'{env}.py')
+    
+    logging.info("-" * 50)
+    logging.info(f"INFO: 检测到当前环境为: '{env}'")
+    
+    # 2. 从 default.py 加载配置
+    if os.path.exists(default_settings_path):
+        logging.info(f"INFO: 准备加载默认配置文件: {default_settings_path}")
+        # 使用 exec 读取 .py 文件中的变量
+        _vars = {}
+        with open(default_settings_path, 'r', encoding='utf-8') as f:
+            exec(f.read(), _vars)
+        for key, value in _vars.items():
+            if not key.startswith('__'):
+                config[key] = value
+    
+    # 3. 从环境特定的 .py 文件加载配置，并覆盖默认值
+    if os.path.exists(env_settings_path):
+        logging.info(f"INFO: 准备加载环境配置文件: {env_settings_path}")
+        _vars = {}
+        with open(env_settings_path, 'r', encoding='utf-8') as f:
+            exec(f.read(), _vars)
+        for key, value in _vars.items():
+            if not key.startswith('__'):
+                config[key] = value
+    else:
+        logging.warning(f"WARN: 未找到环境 '{env}' 的特定配置文件: {env_settings_path}")
 
-# 使用示例:
-# from src.config import settings
-# print(settings.ASR_DEVICE)
-# print(settings.PORT) 
+    logging.info("-" * 50)
+    return config
+
+
+class Settings(BaseSettings):
+    # 为所有配置项提供类型提示和默认值
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+    MODEL_DIR: str = "models/default_model"
+    ASR_DEVICE: str = "cpu"
+
+    model_config = SettingsConfigDict(
+        # 允许从我们自定义的 py_file_settings 函数加载配置
+        # @field: ... 表示这是 pydantic-settings 的一个特殊功能
+        custom_settings_source=py_file_settings
+    )
+
+# 创建全局可用的配置实例
+settings = Settings() 
