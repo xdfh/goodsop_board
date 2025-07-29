@@ -39,6 +39,21 @@ COPY ASR/config ./config
 # 将 src 目录完整复制过去
 COPY ASR/src ./src
 
+# 复制本地依赖库
+COPY ./ASR/libs /app/libs
+
+# 运行 pip install 命令安装所有依赖
+# --no-cache-dir: 不使用缓存，确保每次都是最新的安装
+# -r requirements.prod.txt: 从文件中安装依赖
+# -i: 将唯一的索引指向内部 Nexus 的 pypi-group，它现在可以提供所有来源的包
+# --trusted-host: 信任非 https 的 Nexus 源
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    -r requirements.prod.txt \
+    -i http://192.168.1.161:8081/repository/pypi-group/simple \
+    --trusted-host 192.168.1.161 && \
+    pip install --no-cache-dir /app/libs/*.whl
+
 # 向容器外部暴露 8000 端口
 EXPOSE 8000
 
