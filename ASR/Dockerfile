@@ -19,6 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
+# 新增：将底层的 NPU 动态库复制到系统标准库路径，以便 Python 包装器能够找到它
+COPY ASR/libs/librknnrt.so /usr/lib/
+
 # 复制项目的依赖文件
 # 将生产环境的依赖文件复制到容器中
 COPY ASR/requirements.prod.txt .

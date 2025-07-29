@@ -28,9 +28,10 @@ class ASRService:
 
         # 在实例化时检查模块加载状态并记录日志
         if not NPU_MODULES_LOADED:
-            logging.warning(f"未能加载 NPU 相关模块: {NPU_IMPORT_ERROR}。NPU 功能将在 CPU 模式下被禁用。")
+            logging.error(f"无法加载 NPU 模块: {NPU_IMPORT_ERROR}。请检查 rknn-toolkit-lite2 是否正确安装，以及 librknnrt.so 是否存在于系统中。")
+            logging.warning("服务将在 CPU 模式下运行，ASR 功能被禁用。")
 
-        if self.device == 'npu' and NPU_MODULES_LOADED:
+        elif self.device == 'npu':
             logging.info("检测到 NPU 模式，正在初始化 SenseVoice RKNN 模型...")
             try:
                 logging.info(f"模型目录: {self.model_dir}")
@@ -54,6 +55,7 @@ class ASRService:
                 logging.info(f"SenseVoice RKNN 模型加载完成，耗时: {time.time() - start_time:.2f} 秒")
             except Exception as e:
                 logging.error(f"在 NPU 模式下初始化 SenseVoice RKNN 模型失败: {e}")
+                logging.warning("由于初始化失败，服务将降级到 CPU 模式运行，ASR 功能被禁用。")
                 self.asr_model = None # 确保模型为 None 以防止后续使用
 
         else:  # CPU 模式 (用于本地开发)
