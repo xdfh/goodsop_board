@@ -67,6 +67,7 @@ pipeline {
                     docker buildx build \\
                         --platform linux/arm64 \\
                         --load \\
+                        --no-cache \\
                         -f ASR/Dockerfile \\
                         --build-arg APP_ENV=${params.TARGET_ENV} \\
                         --tag ${MAIN_IMAGE_NAME} \\
