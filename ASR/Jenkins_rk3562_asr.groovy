@@ -61,7 +61,7 @@ pipeline {
                             def imageName = "${harborUrl}/${harborProject}/goodsop-asr-rk3562"
                             
                             def timestamp = new Date().format("yyyyMMdd-HHmmss")
-                            def manualVersion = params.IMAGE_VERSION.trim()
+                            def manualVersion = (params.IMAGE_VERSION ?: '').trim()
                             
                             def timestampTag = "${params.TARGET_ENV}-${timestamp}"
 
