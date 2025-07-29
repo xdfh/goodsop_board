@@ -1,7 +1,7 @@
-# 使用官方 Python 3.9 slim-bookworm 镜像作为基础
-# slim 版本包含运行 Python 应用所需的最少包
-# bookworm 是 Debian 12 的代号
-FROM python:3.9-slim-bookworm
+# 使用国内的 Python 3.9 slim 镜像作为基础镜像，以规避网络问题
+# 'slim' 版本以减小镜像体积
+# 'bookworm' 对应 Debian 12，与目标操作系统匹配
+FROM docker.m.daocloud.io/python:3.9-slim-bookworm
 
 # 设置非交互式前端，防止 apt-get 在构建过程中请求用户输入
 ENV DEBIAN_FRONTEND=noninteractive
