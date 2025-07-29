@@ -52,7 +52,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
     -r requirements.prod.txt \
     -i http://192.168.1.161:8081/repository/pypi-group/simple \
     --trusted-host 192.168.1.161 && \
-    pip install --no-cache-dir /app/libs/*.whl
+    pip install --no-cache-dir \
+    /app/libs/*.whl \
+    -i http://192.168.1.161:8081/repository/pypi-group/simple \
+    --trusted-host 192.168.1.161
 
 # 向容器外部暴露 8000 端口
 EXPOSE 8000
