@@ -68,7 +68,7 @@ pipeline {
                         --platform linux/arm64 \\
                         --load \\
                         -f ASR/Dockerfile \\
-                        --build-arg ${APP_ENV_NAME}=${params.TARGET_ENV} \\
+                        --build-arg APP_ENV=${params.TARGET_ENV} \\
                         --tag ${MAIN_IMAGE_NAME} \\
                         --cache-to type=local,dest=${cacheDir} \\
                         --cache-from type=local,src=${cacheDir} \\
