@@ -59,5 +59,5 @@ class Settings(BaseSettings):
         custom_settings_source=py_file_settings
     )
 
-# 创建全局可用的配置实例
+
 settings = Settings() 

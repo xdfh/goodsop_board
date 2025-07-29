@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="ASR API",
-    description=f"一个使用 RKNN 模型的语音转文字 API (设备: {settings.ASR_DEVICE}, 精度: 自动检测)",
+    description=f"一个使用 RKNN 模型的语音转文字 API (设备: {settings.ASR_DEVICE})",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -91,6 +91,10 @@ async def transcribe_audio(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    import uvicorn
-    # 使用配置中的 HOST 和 PORT
-    uvicorn.run(app, host=settings.HOST, port=settings.PORT) 
+    uvicorn.run(
+        "main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        log_config=settings.LOGGING_CONFIG,
+        reload=True  # 在本地开发时启用重载
+    ) 
