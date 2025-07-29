@@ -104,50 +104,13 @@ pipeline {
                 }
             }
         }
-        
-        stage('Login to Harbor') {
-            steps {
-                echo "登录到 Harbor: ${HARBOR_URL}"
-                withCredentials([usernamePassword(credentialsId: HARBOR_CREDENTIALS_ID, passwordVariable: 'HARBOR_PASS', usernameVariable: 'HARBOR_USER')]) {
-                    sh "docker login ${env.HARBOR_URL} -u ${HARBOR_USER} -p ${HARBOR_PASS}"
-                }
-                echo "Harbor 登录成功。"
-            }
-        }
-
-        stage('Tag and Push Images') {
-            steps {
-                script {
-                    // --- 统一的推送逻辑 ---
-                    
-                    // 1. 推送主镜像
-                    echo "开始推送主镜像: ${MAIN_IMAGE_NAME}"
-                    sh "docker push ${MAIN_IMAGE_NAME}"
-                    
-                    // 2. 为主镜像打上 latest 标签并推送
-                    echo "标记并推送 latest 镜像: ${LATEST_IMAGE_NAME}"
-                    sh "docker tag ${MAIN_IMAGE_NAME} ${LATEST_IMAGE_NAME}"
-                    sh "docker push ${LATEST_IMAGE_NAME}"
-                    
-                    echo "所有镜像推送完成。"
-                }
-            }
-        }
     }
-    
     post {
         always {
             script {
-                // 清理本地镜像
-                echo "开始清理本地镜像..."
-                // 使用 || true 确保即使镜像不存在，该步骤也不会报错失败
-                sh "docker rmi ${MAIN_IMAGE_NAME} || true"
-                sh "docker rmi ${LATEST_IMAGE_NAME} || true"
-                
-                // 登出 Harbor
-                echo "从 Harbor 登出..."
-                sh "docker logout ${HARBOR_URL}"
-                echo "清理完成。"
+                // 清理工作区和镜像
+                println "流水线执行完毕，开始清理..."
+                cleanWs() // 清理工作区
             }
         }
     }
