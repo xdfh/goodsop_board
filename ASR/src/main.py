@@ -91,10 +91,10 @@ async def transcribe_audio(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run(
-        "main:app",
+        app,
         host=settings.HOST,
         port=settings.PORT,
-        log_config=settings.LOGGING_CONFIG,
-        reload=True  # 在本地开发时启用重载
+        log_config=settings.LOGGING_CONFIG
     ) 
