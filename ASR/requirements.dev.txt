@@ -1,11 +1,7 @@
-fastapi
-uvicorn[standard]
-python-multipart
-tf-nightly
-librosa
-soundfile
-pydub
-python-dotenv
+tensorflow
 pydantic-settings
-numpy<2.0
-dynaconf 
+uvicorn
+python-multipart
+librosa
+pydub
+tflite-runtime 
