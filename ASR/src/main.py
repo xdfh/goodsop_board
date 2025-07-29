@@ -1,6 +1,7 @@
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import RedirectResponse
+from contextlib import asynccontextmanager
 from .asr_service import ASRService
 import io
 import traceback
@@ -8,10 +9,28 @@ import time
 from pydub import AudioSegment
 from .config import settings  # 导入新的配置对象
 
+# --- 服务生命周期管理 ---
+# 使用 lifespan 事件，确保 ASRService 在应用启动时加载，在关闭时清理
+asr_service_instance = {"instance": None}
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 应用启动时执行
+    print("--- 应用启动 ---")
+    asr_service_instance["instance"] = ASRService(
+        model_dir=settings.MODEL_DIR,
+        device=settings.ASR_DEVICE
+    )
+    yield
+    # 应用关闭时执行
+    print("--- 应用关闭 ---")
+    asr_service_instance["instance"] = None
+
 app = FastAPI(
     title="ASR API",
-    description=f"一个使用 TFLite 模型的语音转文字 API (设备: {settings.ASR_DEVICE}, 精度: 自动检测)",
+    description=f"一个使用 RKNN 模型的语音转文字 API (设备: {settings.ASR_DEVICE}, 精度: 自动检测)",
     version="1.0.0",
+    lifespan=lifespan
 )
 
 @app.get("/api")
@@ -21,15 +40,12 @@ async def redirect_to_docs():
     """
     return RedirectResponse(url="/docs")
 
-# 使用新的配置对象初始化服务
-# 将配置的设备信息传递给服务
-asr_service = ASRService(
-    model_dir=settings.MODEL_DIR,
-    device=settings.ASR_DEVICE
-)
-
 @app.post("/transcribe/")
 async def transcribe_audio(file: UploadFile = File(...)):
+    asr_service = asr_service_instance.get("instance")
+    if not asr_service:
+        raise HTTPException(status_code=503, detail="ASR 服务尚未初始化，请稍后再试。")
+    
     start_time = time.time()  # 记录开始时间
 
     if not file.filename.endswith((".wav", ".mp3", ".flac", ".m4a", ".ogg")):

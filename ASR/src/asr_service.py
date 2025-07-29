@@ -8,8 +8,8 @@ import numpy as np
 # --- 条件导入 NPU 专用模块 ---
 # 只有在目标设备 (Linux) 上才能成功导入这些模块
 try:
-    from .utils.fsmn_vad_abc import FSMNVad
-    from .utils.sense_voice_abc import SenseVoiceInferenceSession, WavFrontend
+    from .utils.fsmn_vad_abc import FSMNVad, WavFrontend
+    from .utils.sense_voice_abc import SenseVoiceInferenceSession
     NPU_MODULES_LOADED = True
     logging.info("成功加载 NPU 相关模块。")
 except ImportError as e:
