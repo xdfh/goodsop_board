@@ -6,6 +6,14 @@ FROM docker.m.daocloud.io/python:3.9-slim-bookworm
 # 设置非交互式前端，防止 apt-get 在构建过程中请求用户输入
 ENV DEBIAN_FRONTEND=noninteractive
 
+# 接收构建时参数
+ARG APP_ENV
+# 将构建时参数设置为容器的环境变量
+ENV APP_ENV=${APP_ENV}
+
+# 新增调试探针：在构建日志中打印出环境变量，以确认其是否被正确传递
+RUN echo ">>> Dockerfile: Building for APP_ENV=${APP_ENV}"
+
 # 新增：彻底更换为国内的 apt 软件源以加速构建
 RUN echo "Types: deb\n\
 URIs: https://mirrors.tuna.tsinghua.edu.cn/debian/\n\

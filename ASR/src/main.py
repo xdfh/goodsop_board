@@ -17,6 +17,8 @@ asr_service_instance = {"instance": None}
 async def lifespan(app: FastAPI):
     # 应用启动时执行
     print("--- 应用启动 ---")
+    # 新增调试探针：打印出最终生效的设备配置
+    print(f">>> main.py: Final ASR_DEVICE = {settings.ASR_DEVICE}")
     asr_service_instance["instance"] = ASRService(
         model_dir=settings.MODEL_DIR,
         device=settings.ASR_DEVICE
