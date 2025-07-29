@@ -2,6 +2,7 @@
 fastapi
 uvicorn
 pydantic-settings
+python-multipart
 
 # 音频处理
 pydub
