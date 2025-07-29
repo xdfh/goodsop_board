@@ -54,28 +54,53 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    echo "开始为 [${params.TARGET_ENV}] 环境构建 Docker 镜像 (目标平台: linux/arm64)..."
-                    
-                    // 定义缓存目录，使用 agent 的工作目录，确保 jenkins 用户有权限
-                    def cacheDir = "/home/jenkins/agent/docker_cache/asr"
-                    sh "mkdir -p ${cacheDir}"
-                    
-                    // 使用 docker buildx 进行跨平台构建，并添加缓存配置
-                    // --cache-to: 将构建缓存导出到本地目录
-                    // --cache-from: 从本地目录加载构建缓存
-                    sh """
-                    docker buildx build \\
-                        --platform linux/arm64 \\
-                        --load \\
-                        --no-cache \\
-                        -f ASR/Dockerfile \\
-                        --build-arg APP_ENV=${params.TARGET_ENV} \\
-                        --tag ${MAIN_IMAGE_NAME} \\
-                        --cache-to type=local,dest=${cacheDir} \\
-                        --cache-from type=local,src=${cacheDir} \\
-                        .
-                    """
-                    echo "Docker 镜像构建完成。"
+                    try {
+                        withCredentials([usernamePassword(credentialsId: HARBOR_CREDENTIALS_ID, passwordVariable: 'HARBOR_PASSWORD', usernameVariable: 'HARBOR_USERNAME')]) {
+                            def harborUrl = "192.168.1.161"
+                            def harborProject = "goodsop_board_asr"
+                            def imageName = "${harborUrl}/${harborProject}/goodsop-asr-rk3562"
+                            
+                            def timestamp = new Date().format("yyyyMMdd-HHmmss")
+                            def manualVersion = params.IMAGE_VERSION.trim()
+                            
+                            def timestampTag = "${params.TARGET_ENV}-${timestamp}"
+
+                            println "开始为 [${params.TARGET_ENV}] 环境构建 Docker 镜像 (目标平台: linux/arm64)..."
+                            // 使用 --no-cache 禁用缓存，确保每次都获取最新变更
+                            def dockerCommand = """
+                                docker buildx build --platform linux/arm64 --load --no-cache \\
+                                    --build-arg APP_ENV=${params.TARGET_ENV} \\
+                                    -t ${imageName}:${timestampTag} \\
+                                    -t ${imageName}:latest \\
+                                    -f ASR/Dockerfile .
+                            """
+
+                            if (!manualVersion.isEmpty()) {
+                                def manualVersionTag = "-t ${imageName}:${manualVersion}"
+                                dockerCommand = dockerCommand.replace("-f ASR/Dockerfile .", "${manualVersionTag} -f ASR/Dockerfile .")
+                            }
+                            
+                            sh dockerCommand
+                            println "Docker 镜像构建完成。"
+
+                            println "正在登录 Harbor..."
+                            sh "echo ${HARBOR_PASSWORD} | docker login ${harborUrl} --username ${HARBOR_USERNAME} --password-stdin"
+                            
+                            println "正在推送 Docker 镜像到 Harbor..."
+                            sh "docker push ${imageName}:${timestampTag}"
+                            sh "docker push ${imageName}:latest"
+                            if (!manualVersion.isEmpty()) {
+                                sh "docker push ${imageName}:${manualVersion}"
+                            }
+                            println "Docker 镜像推送完成。"
+                        }
+                    } catch (e) {
+                        currentBuild.result = 'FAILURE'
+                        error "Docker 构建或推送阶段失败: ${e.toString()}"
+                    } finally {
+                        println "清理 Docker 登录信息..."
+                        sh "docker logout 192.168.1.161"
+                    }
                 }
             }
         }
