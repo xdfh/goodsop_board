@@ -1,11 +1,18 @@
+# 核心框架
 fastapi
-uvicorn[standard]
-python-multipart
-tflite-runtime
-librosa
-soundfile
-pydub
-python-dotenv
+uvicorn
 pydantic-settings
+
+# 音频处理
+pydub
+soundfile
+kaldi_native_fbank
+
+# 模型与推理
 numpy<2.0
-dynaconf 
+pyyaml
+onnxruntime
+sentencepiece
+
+# RKNN NPU 支持 (需要手动安装特定版本)
+# rknn-toolkit2-lite2 

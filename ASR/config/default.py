@@ -7,5 +7,4 @@ PORT = 8000
 
 # ASR 服务相关配置
 MODEL_DIR = "models/default_chinese_model"  # 默认模型目录
-ASR_DEVICE = "cpu"  # 'cpu', 'gpu', 或 'npu'
-ASR_CHUNK_SECONDS = 10  # 音频处理分块大小（秒） 
+ASR_DEVICE = "cpu"  # 'cpu', 'gpu', 或 'npu' 

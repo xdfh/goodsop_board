@@ -1,131 +1,104 @@
-import numpy as np
-import sys
-import os
-import json
+# -*- coding:utf-8 -*-
 
-# 尝试导入轻量级的 tflite_runtime，这在生产/Docker 环境中是首选
+import logging
+import time
+from pathlib import Path
+import numpy as np
+
+# --- 条件导入 NPU 专用模块 ---
+# 只有在目标设备 (Linux) 上才能成功导入这些模块
 try:
-    from tflite_runtime.interpreter import Interpreter
-    print("INFO: 已成功加载 tflite_runtime.interpreter。")
-# 如果失败，则回退到完整的 tensorflow 包，这适用于本地开发环境
-except ImportError:
-    print("INFO: 未找到 tflite_runtime，回退到 tensorflow.lite.Interpreter。")
-    import tensorflow as tf
-    # 从完整的 tensorflow 包中获取 Interpreter
-    Interpreter = tf.lite.Interpreter
+    from .utils.fsmn_vad_abc import FSMNVad
+    from .utils.sense_voice_abc import SenseVoiceInferenceSession, WavFrontend
+    NPU_MODULES_LOADED = True
+    logging.info("成功加载 NPU 相关模块。")
+except ImportError as e:
+    logging.warning(f"未能加载 NPU 相关模块: {e}。NPU 功能将在 CPU 模式下被禁用。")
+    NPU_MODULES_LOADED = False
 
 
 class ASRService:
     def __init__(self, model_dir: str, device: str = "cpu"):
-        print(f"配置的目标设备是: {device.upper()}")
-        
+        self.device = device.lower()
         self.model_dir = model_dir
-        self._load_vocabulary()
-
-        model_path = os.path.join(model_dir, "model.tflite")
-
-        # 在生产环境中，我们只关心 CPU 或 NPU，并直接使用 tflite_runtime
-        # 移除了所有对完整 tensorflow 包的依赖和 GPU 代理逻辑
-        delegates = None
         
-        # 此处可以为将来的 NPU 支持预留逻辑
-        if device.lower() == "npu":
-            print("警告: NPU 代理逻辑尚未实现，将回退到 CPU。")
-            # try:
-            #     delegates = [tf.lite.load_delegate('libedgetpu.so.1')]
-            # except Exception as e:
-            #     delegates = None
-            delegates = None
-
-        try:
-            # 使用 tflite_runtime 的 Interpreter
-            self.interpreter = Interpreter(
-                model_path=model_path,
-                experimental_delegates=delegates
-            )
-        except Exception as e:
-            print(f"错误: 使用指定代理 ({device}) 初始化解释器失败，将强制使用 CPU。")
-            print(f"   - 错误原因: {e}")
-            self.interpreter = Interpreter(model_path=model_path)
+        logging.info(f"正在初始化 ASR 服务，目标设备: {self.device.upper()}")
+        
+        # --- 根据设备类型，选择不同的初始化路径 ---
+        if self.device == 'npu':
+            if not NPU_MODULES_LOADED:
+                raise ImportError(
+                    "配置为 NPU 模式, 但必要的 NPU 模块未能加载。"
+                    "请确保在 RK3562 设备上已正确安装 rknn-toolkit2-lite2 等所有依赖。"
+                )
             
-        self.interpreter.allocate_tensors()
-        self.input_details = self.interpreter.get_input_details()
-        self.output_details = self.interpreter.get_output_details()
-    
-    def _load_vocabulary(self):
-        """从模型目录加载词汇表和特殊标记。"""
-        # 加载主词汇表
-        vocab_path = os.path.join(self.model_dir, "vocab.json")
-        try:
-            with open(vocab_path, 'r', encoding='utf-8') as f:
-                vocab_dict = json.load(f)
-            # 创建从索引到字符的映射
-            self.vocab_list = [""] * len(vocab_dict)
-            for char, index in vocab_dict.items():
-                self.vocab_list[index] = char
-        except FileNotFoundError:
-            print(f"错误: 在 '{self.model_dir}' 中未找到 vocab.json。将使用默认的英文字母表。")
-            self.vocab_list = [' ', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', "'"]
+            logging.info(f"模型目录: {self.model_dir}")
+            # 1. 初始化 VAD (语音活动检测) 模型
+            logging.info("开始加载 VAD 模型...")
+            start_time = time.time()
+            self.vad_model = FSMNVad(self.model_dir)
+            logging.info(f"VAD 模型加载完成，耗时: {time.time() - start_time:.2f} 秒")
 
-        # 加载并处理特殊标记
-        special_tokens_path = os.path.join(self.model_dir, "special_tokens_map.json")
-        try:
-            with open(special_tokens_path, 'r', encoding='utf-8') as f:
-                special_tokens = json.load(f)
-            self.unk_token = special_tokens.get("unk_token", "")
-            self.pad_token = special_tokens.get("pad_token", "")
-        except FileNotFoundError:
-            print(f"信息: 在 '{self.model_dir}' 中未找到 special_tokens_map.json。将使用默认值。")
-            self.unk_token = ""
-            self.pad_token = ""
+            # 2. 初始化前端特征提取器
+            logging.info("开始初始化前端特征提取器...")
+            start_time = time.time()
+            am_mvn_path = Path(self.model_dir) / "am.mvn"
+            self.frontend = WavFrontend(cmvn_file=str(am_mvn_path))
+            logging.info(f"前端特征提取器初始化完成，耗时: {time.time() - start_time:.2f} 秒")
 
-
-    @property
-    def expected_input_dtype(self):
-        """返回模型期望的输入数据类型 (例如, np.float32)"""
-        return self.input_details[0]['dtype']
+            # 3. 初始化 SenseVoice RKNN 推理引擎
+            logging.info("开始加载 SenseVoice RKNN 模型...")
+            start_time = time.time()
+            self.asr_model = SenseVoiceInferenceSession(self.model_dir)
+            logging.info(f"SenseVoice RKNN 模型加载完成，耗时: {time.time() - start_time:.2f} 秒")
+        
+        else:  # CPU 模式 (用于本地开发)
+            logging.info("服务在 CPU 模式下运行，ASR 转写功能将被禁用（仅用于开发和测试 API）。")
+            self.vad_model = None
+            self.frontend = None
+            self.asr_model = None
 
     def transcribe(self, audio_data: np.ndarray) -> str:
-        input_index = self.input_details[0]['index']
+        # --- 根据设备类型，选择不同的执行路径 ---
+        if self.device == 'npu' and NPU_MODULES_LOADED:
+            """
+            完整的语音转文字流程。
+            1. 使用 VAD 切分有效语音片段。
+            2. 对每个片段提取声学特征。
+            3. 使用 RKNN 模型进行推理。
+            4. 合并所有片段的识别结果。
+            """
+            logging.info("开始进行语音转文字...")
+            start_time = time.time()
 
-        # 检查传入的数据类型是否与模型期望的一致
-        if audio_data.dtype != self.expected_input_dtype:
-            print(f"警告: 传入数据类型 ({audio_data.dtype}) 与模型期望类型 ({self.expected_input_dtype}) 不符。")
-            # 这里只打印警告，因为类型转换的逻辑在 main.py 中处理
-            # 或者也可以在这里强制转换，但放在调用处更清晰
-            # audio_data = audio_data.astype(self.expected_input_dtype)
+            logging.info("步骤 1/3: 正在进行语音活动检测 (VAD)...")
+            segments = self.vad_model.segments_offline(audio_data)
+            if not segments:
+                logging.warning("VAD 未检测到任何有效语音片段。")
+                return ""
+            logging.info(f"VAD 检测到 {len(segments)} 个语音片段。")
 
-        # 动态调整输入张量的大小以匹配实际的音频数据。
-        # 这是处理可变长度输入的 TFLite 模型的标准做法。
-        self.interpreter.resize_tensor_input(input_index, audio_data.shape)
-        self.interpreter.allocate_tensors()
+            full_transcription = []
+            for i, segment in enumerate(segments):
+                start_ms, end_ms = segment
+                segment_audio = audio_data[start_ms * 16 : end_ms * 16]
+                logging.info(f"步骤 2/3: 正在处理片段 {i+1}/{len(segments)} [{start_ms/1000:.2f}s - {end_ms/1000:.2f}s]...")
 
-        self.interpreter.set_tensor(input_index, audio_data)
-        self.interpreter.invoke()
-        output_data = self.interpreter.get_tensor(self.output_details[0]['index'])
-        # 模型的输出是字符概率序列，需要进行解码。
-        # 在本示例中，我们假设使用简单的 argmax 解码。
-        # 实际的实现需要更复杂的 CTC 集束搜索解码器。
-        predicted_indices = np.argmax(output_data[0], axis=1)
+                audio_feats = self.frontend.get_features(segment_audio)
+                
+                logging.info(f"步骤 3/3: 正在对片段 {i+1} 进行 RKNN 推理...")
+                asr_result = self.asr_model(audio_feats[None, ...])
+                
+                logging.info(f"片段 {i+1} 识别结果: '{asr_result}'")
+                full_transcription.append(asr_result)
+
+            final_text = " ".join(full_transcription).strip()
+            total_time = time.time() - start_time
+            logging.info(f"语音转文字完成，总耗时: {total_time:.2f} 秒。")
+            logging.info(f"最终识别结果: '{final_text}'")
+            
+            return final_text
         
-        # 使用加载的词汇表进行解码
-        decoded_text = ""
-        for index in predicted_indices:
-            if index < len(self.vocab_list):
-                decoded_text += self.vocab_list[index]
-        
-        # CTC 解码后处理
-        processed_text = ""
-        for i, char in enumerate(decoded_text):
-            # 移除连续重复的字符
-            if i > 0 and char == decoded_text[i-1]:
-                continue
-            # 移除填充标记
-            if char == self.pad_token:
-                continue
-            processed_text += char
-        
-        # 移除可能存在的未知标记（通常是空格或特定符号）
-        processed_text = processed_text.replace(self.unk_token, "").strip()
-        
-        return processed_text 
+        else: # CPU 模式
+            logging.warning("在 CPU 模式下调用了转写功能，返回模拟结果。")
+            return "（模拟结果）ASR 功能在 CPU 开发模式下不可用，请在 RK3562 设备上进行测试。" 

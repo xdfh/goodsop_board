@@ -46,50 +46,11 @@ async def transcribe_audio(file: UploadFile = File(...)):
         audio_segment.export(wav_io, format="wav")
         wav_io.seek(0)
         
+        # 使用 librosa 加载音频为 numpy 数组，确保采样率为 16000 Hz
         audio_data, _ = librosa.load(wav_io, sr=16000, mono=True)
 
-        CHUNK_SECONDS = settings.ASR_CHUNK_SECONDS # 使用配置的分块时长
-        CHUNK_SAMPLES = 16000 * CHUNK_SECONDS
-
-        full_transcription = ""
-        num_samples = len(audio_data)
-
-        # 从 ASR 服务获取模型期望的输入类型
-        expected_dtype = asr_service.expected_input_dtype
-
-        if num_samples <= CHUNK_SAMPLES:
-            # 根据模型实际需要的类型进行转换
-            processed_data = audio_data.astype(expected_dtype)
-            
-            # 如果是 int8 类型，还需要进行缩放
-            if expected_dtype == np.int8:
-                processed_data = (processed_data * 127).astype(np.int8)
-
-            audio_data_batched = np.expand_dims(processed_data, axis=0)
-            full_transcription = asr_service.transcribe(audio_data_batched)
-        else:
-            all_transcriptions = []
-            print(f"音频过长 ({num_samples / 16000:.2f}秒), 开始分块处理 (每块 {CHUNK_SECONDS} 秒)...")
-            
-            for i in range(0, num_samples, CHUNK_SAMPLES):
-                chunk_end = i + CHUNK_SAMPLES
-                chunk = audio_data[i:chunk_end]
-                
-                print(f"  - 正在处理 {i / 16000:.2f}秒 至 {min(chunk_end / 16000, audio_duration_seconds):.2f}秒...")
-                
-                # 根据模型实际需要的类型进行转换
-                processed_chunk = chunk.astype(expected_dtype)
-
-                # 如果是 int8 类型，还需要进行缩放
-                if expected_dtype == np.int8:
-                    processed_chunk = (processed_chunk * 127).astype(np.int8)
-
-                chunk_batched = np.expand_dims(processed_chunk, axis=0)
-                
-                transcription_part = asr_service.transcribe(chunk_batched)
-                all_transcriptions.append(transcription_part)
-            
-            full_transcription = " ".join(all_transcriptions)
+        # 直接调用新的 ASRService 进行端到端处理
+        full_transcription = asr_service.transcribe(audio_data)
 
         end_time = time.time()  # 记录结束时间
         processing_time_seconds = end_time - start_time
