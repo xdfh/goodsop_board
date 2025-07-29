@@ -1,4 +1,3 @@
-import librosa
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import RedirectResponse
@@ -33,8 +32,8 @@ asr_service = ASRService(
 async def transcribe_audio(file: UploadFile = File(...)):
     start_time = time.time()  # 记录开始时间
 
-    if not (file.filename.endswith(".wav") or file.filename.endswith(".mp3")):
-        raise HTTPException(status_code=400, detail="文件类型无效，请上传 .wav 或 .mp3 文件。")
+    if not file.filename.endswith((".wav", ".mp3", ".flac", ".m4a", ".ogg")):
+        raise HTTPException(status_code=400, detail="文件类型无效，请上传 wav, mp3, flac, m4a, ogg 等常见音频格式。")
 
     try:
         contents = await file.read()
@@ -42,12 +41,20 @@ async def transcribe_audio(file: UploadFile = File(...)):
         audio_segment = AudioSegment.from_file(io.BytesIO(contents))
         audio_duration_seconds = len(audio_segment) / 1000.0  # 获取音频时长（秒）
         
-        wav_io = io.BytesIO()
-        audio_segment.export(wav_io, format="wav")
-        wav_io.seek(0)
+        # 步骤 1: 使用 pydub 进行重采样和声道转换，确保格式正确
+        audio_segment = audio_segment.set_frame_rate(16000)
+        audio_segment = audio_segment.set_channels(1)
+
+        # 步骤 2: 将 pydub 的音频数据转换为 float32 的 numpy 数组
+        # pydub 以整数形式提供样本，我们需要将其标准化到 [-1.0, 1.0] 的浮点范围
+        samples = np.array(audio_segment.get_array_of_samples()).astype(np.float32)
         
-        # 使用 librosa 加载音频为 numpy 数组，确保采样率为 16000 Hz
-        audio_data, _ = librosa.load(wav_io, sr=16000, mono=True)
+        # sample_width 为 2 表示 16-bit PCM，其最大值为 32767
+        if audio_segment.sample_width == 2:
+            audio_data = samples / 32767.0
+        else:
+            # 为其他位深度提供一个通用标准化（尽管 16-bit 是最常见的）
+            audio_data = samples / (2**(audio_segment.sample_width * 8 - 1))
 
         # 直接调用新的 ASRService 进行端到端处理
         full_transcription = asr_service.transcribe(audio_data)
