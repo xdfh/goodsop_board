@@ -6,8 +6,19 @@ FROM docker.m.daocloud.io/python:3.9-slim-bookworm
 # 设置非交互式前端，防止 apt-get 在构建过程中请求用户输入
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 新增：更换为国内的 apt 软件源以加速构建
-RUN sed -i 's|http://deb.debian.org/debian/|http://mirrors.tuna.tsinghua.edu.cn/debian/|g' /etc/apt/sources.list.d/debian.sources
+# 新增：彻底更换为国内的 apt 软件源以加速构建
+RUN echo "Types: deb\n\
+URIs: https://mirrors.tuna.tsinghua.edu.cn/debian/\n\
+Suites: bookworm bookworm-updates bookworm-backports\n\
+Components: main contrib non-free non-free-firmware\n\
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg\n\
+\n\
+Types: deb\n\
+URIs: https://mirrors.tuna.tsinghua.edu.cn/debian-security/\n\
+Suites: bookworm-security\n\
+Components: main contrib non-free non-free-firmware\n\
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg\n\
+" > /etc/apt/sources.list.d/debian.sources
 
 # 安装 ffmpeg 和其他可能需要的系统依赖
 # --no-install-recommends: 不安装推荐的包，保持镜像体积小
