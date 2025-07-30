@@ -84,5 +84,5 @@ WORKDIR /app
 EXPOSE 8000
 
 # 运行应用
-# 使用 uvicorn 命令直接启动，这是生产环境推荐的方式
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"] 
+# 使用 python -m uvicorn 的方式启动，可以更好地处理模块路径
+CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"] 
