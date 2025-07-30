@@ -2,6 +2,7 @@
 
 import os
 import logging
+from functools import partial
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Dict, Any, Tuple, Callable
 
@@ -102,7 +103,8 @@ class Settings(BaseSettings):
         file_secret_settings: PydanticSettingsSource,
     ) -> Tuple[PydanticSettingsSource, ...]:
         return (
-            py_file_settings_source, # 我们的自定义源放在最前面，以确保其值可以被环境变量等覆盖
+            # 使用 functools.partial 来“预填充”我们的加载函数所需的 settings_cls 参数
+            partial(py_file_settings_source, settings_cls),
             init_settings,
             env_settings,
             dotenv_settings,
