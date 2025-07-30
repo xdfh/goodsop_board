@@ -3,10 +3,9 @@
 
 import os
 import logging
-from functools import partial
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 from pydantic import Field
-from typing import Dict, Any, Tuple, Callable
+from typing import Any, Dict
 
 # 1. 这是我们的自定义设置加载器。
 def py_file_settings_source(settings_cls: type[BaseSettings]) -> dict[str, Any]:
@@ -69,7 +68,7 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = 'utf-8'
 
-# 重新添加标准的日志配置字典
+# 恢复并简化日志配置字典，以确保与Uvicorn的兼容性
 LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -88,9 +87,8 @@ LOGGING_CONFIG = {
         },
     },
     "loggers": {
-        "root": {"handlers": ["default"], "level": logging.INFO},
-        "uvicorn.error": {"level": logging.INFO},
-        "uvicorn.access": {"handlers": ["default"], "level": logging.INFO, "propagate": False},
+        # 只配置 root logger，uvicorn会自动继承
+        "": {"handlers": ["default"], "level": "INFO"},
     },
 }
 

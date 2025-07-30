@@ -2,7 +2,7 @@ import io
 import time
 import traceback
 import logging
-from logging.config import dictConfig
+# from logging.config import dictConfig # 不再需要全局配置
 
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
@@ -12,8 +12,8 @@ from pydub import AudioSegment
 from .asr_service import ASRService
 from .config import settings, LOGGING_CONFIG
 
-# 在应用启动前，应用日志配置
-dictConfig(LOGGING_CONFIG)
+# 不再需要在这里应用日志配置
+# dictConfig(LOGGING_CONFIG)
 
 # --- 应用启动事件处理器 ---
 @asynccontextmanager
@@ -108,5 +108,11 @@ async def transcribe_test(request: Request, file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     import uvicorn
-    # uvicorn 会自动使用已配置的 root logger
-    uvicorn.run("main:app", host=settings.HOST, port=settings.PORT, reload=True) 
+    # 将日志配置直接传递给 uvicorn
+    uvicorn.run(
+        "main:app", 
+        host=settings.HOST, 
+        port=settings.PORT, 
+        reload=True,
+        log_config=LOGGING_CONFIG
+    ) 
