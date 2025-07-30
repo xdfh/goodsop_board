@@ -3,9 +3,10 @@
 
 import os
 import logging
-from pydantic_settings import BaseSettings
+from functools import partial
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
-from typing import Any, Dict
+from typing import Dict, Any, Tuple, Callable
 
 # 1. 这是我们的自定义设置加载器。
 def py_file_settings_source(settings_cls: type[BaseSettings]) -> dict[str, Any]:
@@ -64,9 +65,27 @@ class Settings(BaseSettings):
     VAD_MODEL_DIR: str = "/home/cat/data/asr/sense"
     AM_MVN_FILE: str = "am.mvn"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = 'utf-8'
+    # 使用 model_config 替代旧的 class Config
+    model_config = SettingsConfigDict(env_file_encoding='utf-8')
+
+    # 恢复自定义设置源的正确方法
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticSettingsSource,
+        env_settings: PydanticSettingsSource,
+        dotenv_settings: PydanticSettingsSource,
+        file_secret_settings: PydanticSettingsSource,
+    ) -> Tuple[PydanticSettingsSource, ...]:
+        return (
+            # 使用 functools.partial 来“预填充”我们的加载函数所需的 settings_cls 参数
+            partial(py_file_settings_source, settings_cls),
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            file_secret_settings,
+        )
 
 # 恢复并简化日志配置字典，以确保与Uvicorn的兼容性
 LOGGING_CONFIG = {
