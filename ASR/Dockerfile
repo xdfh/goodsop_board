@@ -2,7 +2,8 @@
 # For now, we are doing a single-stage build for simplicity.
 
 # Stage 2: Production environment
-FROM python:3.9-slim
+# 恢复使用国内镜像源，以解决网络超时问题
+FROM docker.m.daocloud.io/python:3.9-slim
 
 # 设置工作目录
 WORKDIR /app
