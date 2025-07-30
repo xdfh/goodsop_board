@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     PORT: int = 8000
     MODEL_DIR: str = "models/default_chinese_model"
     ASR_DEVICE: str = "cpu"
+    LOG_LEVEL: str = "INFO" # 新增: 声明 LOG_LEVEL 配置项
     
     # 日志配置
     LOGGING_CONFIG: Dict[str, Any] = {
