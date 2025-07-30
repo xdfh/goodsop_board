@@ -47,16 +47,18 @@ COPY ./ASR/libs /app/libs
 
 # 3. 一次性安装所有 Python 依赖 (来自 requirements.txt 和 .whl 文件)
 #    这可以更好地利用 Docker 缓存
-RUN pip install --no-cache-dir --upgrade pip && \
+RUN pip install --no-cache-dir --upgrade pip \
+        -i http://192.168.1.161:8081/repository/pypi-group/simple \
+        --trusted-host 192.168.1.161 && \
     pip install --no-cache-dir \
-    -r requirements.prod.txt \
-    -i http://192.168.1.161:8081/repository/pypi-group/simple \
-    --trusted-host 192.168.1.161 \
-    --extra-index-url https://download.pytorch.org/whl/cpu && \
+        -r requirements.prod.txt \
+        -i http://192.168.1.161:8081/repository/pypi-group/simple \
+        --trusted-host 192.168.1.161 \
+        --extra-index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir \
-    /app/libs/*.whl \
-    -i http://192.168.1.161:8081/repository/pypi-group/simple \
-    --trusted-host 192.168.1.161
+        /app/libs/*.whl \
+        -i http://192.168.1.161:8081/repository/pypi-group/simple \
+        --trusted-host 192.168.1.161
 
 # --- 应用程序代码 ---
 
