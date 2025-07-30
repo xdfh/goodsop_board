@@ -110,13 +110,13 @@ if __name__ == "__main__":
     import uvicorn
 
     # 动态构建日志配置，确保日志级别被正确处理
-    log_level = settings.LOG_LEVEL.upper()
+    log_level_str = settings.LOG_LEVEL.upper()
     
-    # 确保日志级别是 logging 模块可以识别的常量
-    numeric_level = getattr(logging, log_level, None)
+    # 关键修复：将日志级别字符串转换为 logging 模块的常量
+    numeric_level = getattr(logging, log_level_str, None)
     if not isinstance(numeric_level, int):
-        logging.warning(f"无效的日志级别: {log_level}。将回退到 INFO 级别。")
-        log_level = "INFO"
+        logging.warning(f"无效的日志级别: {log_level_str}。将回退到 INFO 级别。")
+        numeric_level = logging.INFO
 
     log_config = {
         "version": 1,
@@ -136,9 +136,10 @@ if __name__ == "__main__":
             },
         },
         "loggers": {
-            "": {"handlers": ["default"], "level": log_level},
-            "uvicorn.error": {"level": log_level},
-            "uvicorn.access": {"handlers": ["default"], "level": "INFO", "propagate": False},
+            # 关键修复：使用转换后的 numeric_level 常量
+            "": {"handlers": ["default"], "level": numeric_level},
+            "uvicorn.error": {"level": numeric_level},
+            "uvicorn.access": {"handlers": ["default"], "level": numeric_level, "propagate": False},
         },
     }
 
