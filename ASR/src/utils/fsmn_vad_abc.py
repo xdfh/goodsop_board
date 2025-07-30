@@ -44,13 +44,22 @@ class VadOrtInferRuntimeSession:
 
 # Audio Frontend
 class WavFrontend:
-    def __init__(self, cmvn_file: str, **kwargs) -> None:
+    def __init__(
+        self,
+        cmvn_file: str,
+        apply_lfr: bool = False, # 新增参数，控制是否应用LFR
+        lfr_m: int = 7,
+        lfr_n: int = 6,
+        **kwargs
+    ) -> None:
         frame_length = kwargs.get("frame_length", 25)
         frame_shift = kwargs.get("frame_shift", 10)
         n_mels = kwargs.get("n_mels", 80)
         fs = kwargs.get("fs", 16000)
-        self.lfr_m = kwargs.get("lfr_m", 5) # Default to 5 to get 80 -> 400
-        self.lfr_n = kwargs.get("lfr_n", 1)
+        
+        self.apply_lfr = apply_lfr  # 存储LFR的应用状态
+        self.lfr_m = kwargs.get("lfr_m", lfr_m)
+        self.lfr_n = kwargs.get("lfr_n", lfr_n)
         
         opts = knf.FbankOptions()
         opts.frame_opts.samp_freq = fs
@@ -73,16 +82,16 @@ class WavFrontend:
         return mat.astype(np.float32)
 
     def _apply_cmvn(self, inputs: np.ndarray) -> np.ndarray:
-        frame, dim = inputs.shape
-        means = np.tile(self.cmvn[0:1, :dim], (frame, 1))
-        vars = np.tile(self.cmvn[1:2, :dim], (frame, 1))
-        return (inputs + means) * vars
+        return (inputs - self.cmvn[0]) * self.cmvn[1]
 
     def get_features(self, waveform: np.ndarray) -> np.ndarray:
         fbank = self.fbank(waveform)
-        # Re-enable LFR
-        lfr_feats = self._apply_lfr(fbank)
-        return self._apply_cmvn(lfr_feats)
+        # 根据 apply_lfr 标志决定是否应用LFR
+        if self.apply_lfr:
+            lfr_feats = self._apply_lfr(fbank)
+            return self._apply_cmvn(lfr_feats)
+        else:
+            return self._apply_cmvn(fbank)
 
     def _apply_lfr(self, inputs: np.ndarray) -> np.ndarray:
         T, D = inputs.shape
@@ -159,7 +168,16 @@ class FSMNVadABC:
         self.vad_opts = VADXOptions(**self.config.get("vadPostArgs", {}))
 
         cmvn_path = str(model_dir / self.config.get("am_mvn_file", "am.mvn"))
-        self.frontend = WavFrontend(cmvn_file=cmvn_path, **self.config.get("WavFrontend", {}).get("frontend_conf", {}))
+        
+        # VAD的WavFrontend需要LFR来输出400维特征，因此apply_lfr=True是固定的
+        frontend_conf = self.config.get("WavFrontend", {}).get("frontend_conf", {})
+        self.frontend = WavFrontend(
+            cmvn_file=cmvn_path,
+            apply_lfr=True,  # VAD模型强制使用LFR
+            lfr_m=frontend_conf.get("lfr_m", 5),
+            lfr_n=frontend_conf.get("lfr_n", 1),
+            **frontend_conf
+        )
         self.scores = []
 
     def _extract_feature(self, waveform: np.ndarray) -> np.ndarray:

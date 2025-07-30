@@ -16,23 +16,24 @@ asr_service_instance = {"instance": None}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 应用启动时执行
+    """
+    应用启动时调用的生命周期函数。
+    负责初始化 ASR 服务。
+    """
     logging.info("--- 应用启动 ---")
-    # 新增调试探针：使用 logging 打印出最终生效的设备配置
-    logging.info(f">>> main.py: Final ASR_DEVICE = {settings.ASR_DEVICE}")
-    logging.info(f">>> main.py: Final MODEL_DIR = {settings.MODEL_DIR}")
     
-    # --- 修改: 传递整个 settings 对象 ---
-    # ASRService 将从 settings 对象中自行获取所需的所有路径
-    asr_service_instance["instance"] = ASRService(settings=settings)
+    # 将整个 settings 对象传递给 ASRService
+    app.state.asr_service = ASRService(settings)
+    
+    logging.info("--- ASR 服务已在 app.state.asr_service 中初始化 ---")
     yield
-    # 应用关闭时执行
     logging.info("--- 应用关闭 ---")
-    asr_service_instance["instance"] = None
 
+# --- 创建 FastAPI 应用实例 ---
+# 确保在 lifespan 定义之后创建 app
 app = FastAPI(
     title="ASR API",
-    description=f"一个使用 RKNN 模型的语音转文字 API (设备: {settings.ASR_DEVICE})",
+    description="一个使用 RKNN 模型的语音转文字 API",
     version="1.0.0",
     lifespan=lifespan
 )
