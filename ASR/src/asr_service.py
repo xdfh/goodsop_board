@@ -110,9 +110,23 @@ class ASRService:
 
                 audio_feats = self.frontend.get_features(segment_audio)
                 
-                # --- 修改: 更新日志信息 ---
+                # --- FIX STARTS HERE: Pad or truncate features for fixed-size RKNN model ---
+                required_frames = 20  # Deduced from RKNN error: 32000 bytes / 4 bytes/float / 400 dims = 20 frames
+                current_frames = audio_feats.shape[0]
+                
+                if current_frames < required_frames:
+                    # Pad with zeros (silence)
+                    padding_size = required_frames - current_frames
+                    padding = np.zeros((padding_size, audio_feats.shape[1]), dtype=audio_feats.dtype)
+                    audio_feats = np.vstack([audio_feats, padding])
+                elif current_frames > required_frames:
+                    # Truncate to the required size
+                    audio_feats = audio_feats[:required_frames, :]
+                # --- FIX ENDS HERE ---
+
                 logging.info(f"步骤 3/3: 正在对片段 {i+1} 进行 RKNN 推理和解码...")
-                asr_result = self.asr_model(audio_feats[None, ...])
+                # The wenet_rknn_inference class now handles adding the batch dimension.
+                asr_result = self.asr_model(audio_feats)
                 
                 logging.info(f"片段 {i+1} 识别结果: '{asr_result}'")
                 full_transcription.append(asr_result)

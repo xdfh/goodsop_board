@@ -139,6 +139,9 @@ class VADXOptions:
     def __init__(self, **kwargs):
         self.frame_in_ms = kwargs.get("frame_in_ms", 10)
         self.speech_noise_thres = kwargs.get("speech_noise_thres", 0.9)
+        self.min_speech_duration_ms = kwargs.get("min_speech_duration_ms", 150)
+        self.min_silence_duration_ms = kwargs.get("min_silence_duration_ms", 50)
+
 
 # Abstract Base Class - defines the interface for VAD models
 class FSMNVadABC:
@@ -162,30 +165,54 @@ class FSMNVadABC:
         return self.frontend.get_features(waveform)
 
     def _postprocess(self, scores: np.ndarray) -> list:
+        # State machine for robust segment detection
+        class State(Enum):
+            SILENCE = 0
+            SPEECH = 1
+
         segments = []
-        is_speech = False
+        state = State.SILENCE
         start_frame = 0
         
-        speech_thresh = self.vad_opts.speech_noise_thres
+        min_speech_frames = self.vad_opts.min_speech_duration_ms // self.vad_opts.frame_in_ms
+        min_silence_frames = self.vad_opts.min_silence_duration_ms // self.vad_opts.frame_in_ms
         
-        for i in range(scores.shape[1]):
-            # Assuming the model's output shape is (1, time, num_classes)
-            # and class at index 1 is speech.
-            speech_prob = scores[0, i, 1] if scores.shape[2] > 1 else (1.0 - scores[0, i, 0])
+        speech_frames_count = 0
+        silence_frames_count = 0
 
-            if speech_prob > speech_thresh and not is_speech:
-                is_speech = True
-                start_frame = i
-            elif speech_prob < speech_thresh and is_speech:
-                is_speech = False
-                start_ms = start_frame * self.vad_opts.frame_in_ms
-                end_ms = i * self.vad_opts.frame_in_ms
-                if end_ms > start_ms:
-                    segments.append([start_ms, end_ms])
-        
-        if is_speech:
+        for i in range(scores.shape[1]):
+            speech_prob = scores[0, i, 1] if scores.shape[2] > 1 else (1.0 - scores[0, i, 0])
+            is_speech_frame = speech_prob > self.vad_opts.speech_noise_thres
+
+            if state == State.SILENCE:
+                if is_speech_frame:
+                    speech_frames_count += 1
+                    if speech_frames_count >= min_speech_frames:
+                        start_frame = i - speech_frames_count + 1
+                        state = State.SPEECH
+                        silence_frames_count = 0
+                else:
+                    speech_frames_count = 0 # Reset if speech is not continuous
+            
+            elif state == State.SPEECH:
+                if not is_speech_frame:
+                    silence_frames_count += 1
+                    if silence_frames_count >= min_silence_frames:
+                        end_frame = i - silence_frames_count + 1
+                        start_ms = start_frame * self.vad_opts.frame_in_ms
+                        end_ms = end_frame * self.vad_opts.frame_in_ms
+                        if end_ms > start_ms:
+                            segments.append([start_ms, end_ms])
+                        state = State.SILENCE
+                        speech_frames_count = 0
+                else:
+                    silence_frames_count = 0 # Reset if silence is not continuous
+
+        # If audio ends while in speech state
+        if state == State.SPEECH:
+            end_frame = scores.shape[1]
             start_ms = start_frame * self.vad_opts.frame_in_ms
-            end_ms = scores.shape[1] * self.vad_opts.frame_in_ms
+            end_ms = end_frame * self.vad_opts.frame_in_ms
             if end_ms > start_ms:
                 segments.append([start_ms, end_ms])
                 
