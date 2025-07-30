@@ -29,10 +29,12 @@ Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg\n\
 " > /etc/apt/sources.list.d/debian.sources
 
 # 安装 ffmpeg 和其他可能需要的系统依赖
+# --- 最终修正：为新版 RKNN 驱动添加 libatomic1 依赖 ---
 # --no-install-recommends: 不安装推荐的包，保持镜像体积小
 # apt-get clean && rm -rf /var/lib/apt/lists/*: 清理 apt 缓存，减小最终镜像大小
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    libatomic1 \
     && rm -rf /var/lib/apt/lists/*
 
 # --- 依赖项设置 ---
