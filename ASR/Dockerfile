@@ -59,7 +59,8 @@ RUN pip install --no-cache-dir --upgrade pip -i http://192.168.1.161:8081/reposi
 
 # 步骤 2: 安装 torch 和 torchaudio
 # 我们最后安装 torch，以确保它的依赖不会被其他包覆盖，从而解决依赖冲突
-RUN pip install --no-cache-dir torch==2.4.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cpu
+# 我们降级到 2.2.0，尝试解决 Illegal instruction 问题，这可能是由于新版本 PyTorch 的指令集与 RK3562 CPU 不兼容
+RUN pip install --no-cache-dir torch==2.2.0 torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cpu
 
 # 设置工作目录
 WORKDIR /
