@@ -175,7 +175,11 @@ class FSMNVad(FSMNVadABC):
         feats = self._extract_feature(waveform)
         
         feats = feats.astype(np.float32)
-        scores_list = self.model([feats])
+
+        # The model expects a 3D input (batch, time, feats), but feats is 2D.
+        # Add a batch dimension using np.expand_dims to make it (1, time, feats).
+        feats_batch = np.expand_dims(feats, axis=0)
+        scores_list = self.model([feats_batch])
         
         # In offline mode, scores_list should contain a single scores array
         all_scores = scores_list[0] if scores_list else np.array([])
