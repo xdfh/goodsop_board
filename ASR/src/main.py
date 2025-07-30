@@ -106,48 +106,4 @@ async def transcribe_test(request: Request, file: UploadFile = File(...)):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-if __name__ == "__main__":
-    import uvicorn
-
-    # 动态构建日志配置，确保日志级别被正确处理
-    log_level_str = settings.LOG_LEVEL.upper()
-    
-    # 关键修复：将日志级别字符串转换为 logging 模块的常量
-    numeric_level = getattr(logging, log_level_str, None)
-    if not isinstance(numeric_level, int):
-        logging.warning(f"无效的日志级别: {log_level_str}。将回退到 INFO 级别。")
-        numeric_level = logging.INFO
-
-    log_config = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "default": {
-                "()": "uvicorn.logging.DefaultFormatter",
-                "fmt": "%(levelprefix)s %(asctime)s - %(message)s",
-                "datefmt": "%Y-%m-%d %H:%M:%S",
-            },
-        },
-        "handlers": {
-            "default": {
-                "formatter": "default",
-                "class": "logging.StreamHandler",
-                "stream": "ext://sys.stderr",
-            },
-        },
-        "loggers": {
-            # 关键修复：使用转换后的 numeric_level 常量
-            "": {"handlers": ["default"], "level": numeric_level},
-            "uvicorn.error": {"level": numeric_level},
-            "uvicorn.access": {"handlers": ["default"], "level": numeric_level, "propagate": False},
-        },
-    }
-
-    uvicorn.run(
-        "main:app", 
-        host=settings.HOST, 
-        port=settings.PORT, 
-        reload=True,
-        log_config=log_config,
-        reload_dirs=["/src"]  # 明确指定只监控 /src 目录
-    ) 
+# 移除 if __name__ == "__main__" 代码块，因为启动逻辑已移至 Dockerfile 的 CMD 指令 

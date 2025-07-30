@@ -72,16 +72,17 @@ RUN pip install --no-cache-dir torch==2.2.0 torchaudio==2.2.0 --index-url https:
 #
 # 将代码复制操作放在最后，这样修改代码不会破坏前面的依赖缓存
 COPY ASR/config ./config
+# 将 ASR/src 的内容复制到 /app/src
 COPY ASR/src ./src
 
 # 设置工作目录
-WORKDIR /
+WORKDIR /app
 
 # --- 运行配置 ---
 
 # 向容器外部暴露 8000 端口
 EXPOSE 8000
 
-# 容器启动时执行的命令
-# 使用 python -m src.main 来启动 uvicorn 服务
-CMD ["python", "-m", "src.main"] 
+# 运行应用
+# 使用 uvicorn 命令直接启动，这是生产环境推荐的方式
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"] 
