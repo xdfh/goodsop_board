@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from rknnlite.api import RKNNLite
 from .ctc_decoder import CTC
+import logging
 
 
 class WenetRknnInference:
@@ -45,10 +46,17 @@ class WenetRknnInference:
         # The second input to the rknn model is the sequence length
         lengths_np = np.array([seq_len]).astype(np.int64)
 
+        # RKNN does not support float64. Convert inputs to float32.
+        feats_np = feats_np.astype(np.float32)
+
         # 1. 在NPU上执行编码器推理
         # print(f"--> [NPU] 正在执行RKNN推理，输入形状: {feats_np.shape}")
         outputs = self.rknn.inference(inputs=[feats_np, lengths_np])
         
+        if outputs is None:
+            logging.error("RKNN inference returned None. Check logs for hardware errors.")
+            return ""
+
         # 编码器的输出是返回列表中的第一个元素
         encoder_out = torch.from_numpy(outputs[0])
 
