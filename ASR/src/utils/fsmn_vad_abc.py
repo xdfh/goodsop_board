@@ -138,7 +138,8 @@ class WavFrontend:
 class VADXOptions:
     def __init__(self, **kwargs):
         self.frame_in_ms = kwargs.get("frame_in_ms", 10)
-        self.speech_noise_thres = kwargs.get("speech_noise_thres", 0.9)
+        # Lowered threshold from 0.9, which was too strict, to a more reasonable 0.5
+        self.speech_noise_thres = kwargs.get("speech_noise_thres", 0.5)
         self.min_speech_duration_ms = kwargs.get("min_speech_duration_ms", 150)
         self.min_silence_duration_ms = kwargs.get("min_silence_duration_ms", 50)
 
@@ -180,8 +181,12 @@ class FSMNVadABC:
         speech_frames_count = 0
         silence_frames_count = 0
 
+        # For debugging VAD performance
+        max_speech_prob = 0.0
+
         for i in range(scores.shape[1]):
             speech_prob = scores[0, i, 1] if scores.shape[2] > 1 else (1.0 - scores[0, i, 0])
+            max_speech_prob = max(max_speech_prob, speech_prob)
             is_speech_frame = speech_prob > self.vad_opts.speech_noise_thres
 
             if state == State.SILENCE:
@@ -215,6 +220,12 @@ class FSMNVadABC:
             end_ms = end_frame * self.vad_opts.frame_in_ms
             if end_ms > start_ms:
                 segments.append([start_ms, end_ms])
+        
+        # Log debugging information if no segments are found
+        if not segments:
+            logging.warning(f"VAD post-processing found no segments. "
+                            f"Max speech probability in audio was {max_speech_prob:.4f} "
+                            f"(Threshold is {self.vad_opts.speech_noise_thres}).")
                 
         return segments
     
