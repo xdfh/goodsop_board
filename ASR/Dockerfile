@@ -35,37 +35,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# 新增：将底层的 NPU 动态库复制到系统标准库路径，以便 Python 包装器能够找到它
+# --- 依赖项设置 ---
+
+# 1. 复制并注册底层的 NPU 动态库
 COPY ASR/libs/librknnrt.so /usr/lib/
+RUN ldconfig
 
-# 复制项目的依赖文件
-# 将生产环境的依赖文件复制到容器中
+# 2. 复制所有依赖相关的文件
 COPY ASR/requirements.prod.txt .
-
-# 安装依赖
-# --no-cache-dir: 不缓存包，减小镜像大小
-# -i: 将唯一的索引指向内部 Nexus 的 pypi-group，它现在可以提供所有来源的包
-# --trusted-host: 信任非 https 的 Nexus 源
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir \
-    -r requirements.prod.txt \
-    -i http://192.168.1.161:8081/repository/pypi-group/simple \
-    --trusted-host 192.168.1.161
-
-# 复制配置文件和应用程序代码
-# 将 config 目录完整复制过去
-COPY ASR/config ./config
-# 将 src 目录完整复制过去
-COPY ASR/src ./src
-
-# 复制本地依赖库
 COPY ./ASR/libs /app/libs
 
-# 运行 pip install 命令安装所有依赖
-# --no-cache-dir: 不使用缓存，确保每次都是最新的安装
-# -r requirements.prod.txt: 从文件中安装依赖
-# -i: 将唯一的索引指向内部 Nexus 的 pypi-group，它现在可以提供所有来源的包
-# --trusted-host: 信任非 https 的 Nexus 源
+# 3. 一次性安装所有 Python 依赖 (来自 requirements.txt 和 .whl 文件)
+#    这可以更好地利用 Docker 缓存
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
     -r requirements.prod.txt \
@@ -75,6 +56,15 @@ RUN pip install --no-cache-dir --upgrade pip && \
     /app/libs/*.whl \
     -i http://192.168.1.161:8081/repository/pypi-group/simple \
     --trusted-host 192.168.1.161
+
+# --- 应用程序代码 ---
+
+# 复制配置文件和应用程序源代码
+# 将它们放在依赖安装之后，这样代码变更时不会导致依赖重新安装
+COPY ASR/config ./config
+COPY ASR/src ./src
+
+# --- 运行配置 ---
 
 # 向容器外部暴露 8000 端口
 EXPOSE 8000

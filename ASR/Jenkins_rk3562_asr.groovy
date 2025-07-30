@@ -68,7 +68,7 @@ pipeline {
                             println "开始为 [${params.TARGET_ENV}] 环境构建 Docker 镜像 (目标平台: linux/arm64)..."
                             // 使用 --no-cache 禁用缓存，确保每次都获取最新变更
                             def dockerCommand = """
-                                docker buildx build --platform linux/arm64 --load --no-cache \\
+                                docker buildx build --platform linux/arm64 --load  \\
                                     --build-arg APP_ENV=${params.TARGET_ENV} \\
                                     -t ${imageName}:${timestampTag} \\
                                     -t ${imageName}:latest \\
