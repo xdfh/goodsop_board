@@ -3,48 +3,49 @@
 import os
 import logging
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Dict, Any
+from typing import Dict, Any, Tuple, Callable
 
-# 这是一个辅助函数，用于从 .py 文件加载配置
-def py_file_settings(settings: BaseSettings) -> dict:
+# 1. 这是我们的自定义设置加载器。
+def py_file_settings_source(settings_cls: type[BaseSettings]) -> dict[str, Any]:
+    """
+    一个从 .py 文件加载变量的设置源。
+    """
     config = {}
-    
-    # 1. 确定环境并找到配置文件
-    # 我们继续使用 Jenkins/Dockerfile 中传入的 ENV_FOR_DYNACONF 环境变量
     env = os.getenv("ENV_FOR_DYNACONF", "dev01").lower()
-    config_dir = os.path.join(os.path.dirname(__file__), '..', 'config')
     
+    # 由于日志记录此时尚未配置，因此使用 print
+    print(f"--- [config.py DEBUG] 检测到环境: '{env}'")
+    
+    config_dir = os.path.join(os.path.dirname(__file__), '..', 'config')
     default_settings_path = os.path.join(config_dir, 'default.py')
     env_settings_path = os.path.join(config_dir, f'{env}.py')
     
-    logging.info("-" * 50)
-    logging.info(f"INFO: 检测到当前环境为: '{env}'")
-    
-    # 2. 从 default.py 加载配置
+    # 加载默认设置
     if os.path.exists(default_settings_path):
-        logging.info(f"INFO: 准备加载默认配置文件: {default_settings_path}")
-        # 使用 exec 读取 .py 文件中的变量
+        print(f"--- [config.py DEBUG] 正在加载默认设置: {default_settings_path}")
         _vars = {}
         with open(default_settings_path, 'r', encoding='utf-8') as f:
             exec(f.read(), _vars)
         for key, value in _vars.items():
             if not key.startswith('__'):
                 config[key] = value
-    
-    # 3. 从环境特定的 .py 文件加载配置，并覆盖默认值
+
+    # 加载特定于环境的设置，覆盖默认值
     if os.path.exists(env_settings_path):
-        logging.info(f"INFO: 准备加载环境配置文件: {env_settings_path}")
+        print(f"--- [config.py DEBUG] 正在加载环境设置: {env_settings_path}")
         _vars = {}
         with open(env_settings_path, 'r', encoding='utf-8') as f:
             exec(f.read(), _vars)
         for key, value in _vars.items():
             if not key.startswith('__'):
                 config[key] = value
-    else:
-        logging.warning(f"WARN: 未找到环境 '{env}' 的特定配置文件: {env_settings_path}")
-
-    logging.info("-" * 50)
+                print(f"--- [config.py DEBUG] 已从 '{env}.py' 文件中覆盖 '{key}'")
+    
+    print(f"--- [config.py DEBUG] 文件中的最终配置: {config}")
     return config
+
+# 为 Pydantic 内部源类型定义类型提示，以提高可读性
+PydanticSettingsSource = Callable[[type[BaseSettings]], dict[str, Any]]
 
 
 class Settings(BaseSettings):
@@ -54,7 +55,7 @@ class Settings(BaseSettings):
     MODEL_DIR: str = "models/default_chinese_model"
     ASR_DEVICE: str = "cpu"
     
-    # Logging configuration
+    # 日志配置
     LOGGING_CONFIG: Dict[str, Any] = {
         "version": 1,
         "disable_existing_loggers": False,
@@ -88,12 +89,24 @@ class Settings(BaseSettings):
         },
     }
 
-    model_config = SettingsConfigDict(
-        env_file_encoding='utf-8',
-        # Pydantic-settings will call this function to load settings from python files.
-        # @field: ... 表示这是 pydantic-settings 的一个特殊功能
-        custom_settings_source=py_file_settings
-    )
+    model_config = SettingsConfigDict(env_file_encoding='utf-8')
 
+    # 2. 这是在 pydantic-settings 中添加自定义设置源的正确方法
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticSettingsSource,
+        env_settings: PydanticSettingsSource,
+        dotenv_settings: PydanticSettingsSource,
+        file_secret_settings: PydanticSettingsSource,
+    ) -> Tuple[PydanticSettingsSource, ...]:
+        return (
+            py_file_settings_source, # 我们的自定义源放在最前面，以确保其值可以被环境变量等覆盖
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            file_secret_settings,
+        )
 
 settings = Settings() 
