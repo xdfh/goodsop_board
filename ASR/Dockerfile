@@ -63,16 +63,7 @@ COPY ./ASR/libs /app/libs
 #    只要 libs 文件夹内容不变，这一层就会被缓存
 RUN pip install --no-cache-dir /app/libs/*.whl -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161
 
-# 5. 安装 openai-whisper (隔离依赖)
-RUN pip install --no-cache-dir --no-deps openai-whisper -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161
-
-# 6. 安装 wenet (隔离依赖)
-RUN git config --global http.proxy http://192.168.1.31:7897 && \
-    git config --global https.proxy https://192.168.1.31:7897 && \
-    git clone https://github.com/wenet-e2e/wenet.git && \
-    pip install --no-cache-dir --no-deps -e ./wenet -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161
-
-# 7. 安装 torch 和 torchaudio (最耗时的下载)
+# 5. 安装 torch 和 torchaudio (最耗时的下载)
 #    这一层也稳定不变
 RUN pip install --no-cache-dir torch==2.2.0 torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cpu
 

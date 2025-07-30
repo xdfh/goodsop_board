@@ -1,7 +1,8 @@
 import numpy as np
 import torch
 from rknnlite.api import RKNNLite
-from wenet.utils.ctc import CTC
+from .ctc_decoder import CTC
+
 
 class WenetRknnInference:
     """
