@@ -169,13 +169,20 @@ class FSMNVadABC:
 
         cmvn_path = str(model_dir / self.config.get("am_mvn_file", "am.mvn"))
         
-        # VAD的WavFrontend需要LFR来输出400维特征，因此apply_lfr=True是固定的
         frontend_conf = self.config.get("WavFrontend", {}).get("frontend_conf", {})
+        
+        # 解决TypeError: got multiple values for keyword argument 'lfr_m'
+        # 从字典中弹出 lfr 参数，以避免通过 **frontend_conf 重复传递。
+        # 同时为这些参数设置默认值。
+        lfr_m_val = frontend_conf.pop('lfr_m', 5)
+        lfr_n_val = frontend_conf.pop('lfr_n', 1)
+
+        # VAD的WavFrontend需要LFR来输出400维特征
         self.frontend = WavFrontend(
             cmvn_file=cmvn_path,
             apply_lfr=True,  # VAD模型强制使用LFR
-            lfr_m=frontend_conf.get("lfr_m", 5),
-            lfr_n=frontend_conf.get("lfr_n", 1),
+            lfr_m=lfr_m_val,
+            lfr_n=lfr_n_val,
             **frontend_conf
         )
         self.scores = []
