@@ -8,8 +8,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # 接收构建时参数
 ARG APP_ENV
-# 将构建时参数设置为容器的环境变量
-ENV APP_ENV=${APP_ENV}
+# 将构建时参数设置为容器的环境变量，确保名称与 config.py 中读取的一致
+ENV ENV_FOR_DYNACONF=${APP_ENV}
 
 # 新增调试探针：在构建日志中打印出环境变量，以确认其是否被正确传递
 RUN echo ">>> Dockerfile: Building for APP_ENV=${APP_ENV}"
