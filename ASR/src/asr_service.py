@@ -95,43 +95,70 @@ class ASRService:
             logging.info("开始进行语音转文字...")
             start_time = time.time()
 
-            logging.info("步骤 1/3: 正在进行语音活动检测 (VAD)...")
-            segments = self.vad_model.segments_offline(audio_data)
-            if not segments:
-                logging.warning("VAD 未检测到任何有效语音片段。")
-                return ""
-            logging.info(f"VAD 检测到 {len(segments)} 个语音片段。")
+            # --- 暂时绕过VAD，直接处理整个音频以测试ASR核心功能 ---
+            logging.warning("注意：VAD（语音活动检测）步骤当前被绕过，用于调试。")
+            
+            # 1. 提取整个音频的特征
+            audio_feats = self.frontend.get_features(audio_data)
+            
+            # 2. 将特征填充或截断到模型所需的固定长度
+            required_frames = 20  # 之前推断出的固定帧数
+            current_frames = audio_feats.shape[0]
+            
+            if current_frames < required_frames:
+                # 用静音(0)填充
+                padding_size = required_frames - current_frames
+                padding = np.zeros((padding_size, audio_feats.shape[1]), dtype=audio_feats.dtype)
+                final_feats = np.vstack([audio_feats, padding])
+            else:
+                # 截断
+                final_feats = audio_feats[:required_frames, :]
 
-            full_transcription = []
-            for i, segment in enumerate(segments):
-                start_ms, end_ms = segment
-                segment_audio = audio_data[start_ms * 16 : end_ms * 16]
-                logging.info(f"步骤 2/3: 正在处理片段 {i+1}/{len(segments)} [{start_ms/1000:.2f}s - {end_ms/1000:.2f}s]...")
+            # 3. 进行ASR推理
+            logging.info("正在对处理后的音频片段进行 RKNN 推理和解码...")
+            asr_result = self.asr_model(final_feats)
+            final_text = asr_result.strip()
+            
+            # --- VAD 原始逻辑（已注释掉） ---
+            # logging.info("步骤 1/3: 正在进行语音活动检测 (VAD)...")
+            # segments = self.vad_model.segments_offline(audio_data)
+            # if not segments:
+            #     logging.warning("VAD 未检测到任何有效语音片段。")
+            #     return ""
+            # logging.info(f"VAD 检测到 {len(segments)} 个语音片段。")
+            #
+            # full_transcription = []
+            # for i, segment in enumerate(segments):
+            #     start_ms, end_ms = segment
+            #     segment_audio = audio_data[start_ms * 16 : end_ms * 16]
+            #     logging.info(f"步骤 2/3: 正在处理片段 {i+1}/{len(segments)} [{start_ms/1000:.2f}s - {end_ms/1000:.2f}s]...")
+            #
+            #     audio_feats = self.frontend.get_features(segment_audio)
+            #     
+            #     # --- FIX STARTS HERE: Pad or truncate features for fixed-size RKNN model ---
+            #     required_frames = 20  # Deduced from RKNN error: 32000 bytes / 4 bytes/float / 400 dims = 20 frames
+            #     current_frames = audio_feats.shape[0]
+            #     
+            #     if current_frames < required_frames:
+            #         # Pad with zeros (silence)
+            #         padding_size = required_frames - current_frames
+            #         padding = np.zeros((padding_size, audio_feats.shape[1]), dtype=audio_feats.dtype)
+            #         audio_feats = np.vstack([audio_feats, padding])
+            #     elif current_frames > required_frames:
+            #         # Truncate to the required size
+            #         audio_feats = audio_feats[:required_frames, :]
+            #     # --- FIX ENDS HERE ---
+            #
+            #     logging.info(f"步骤 3/3: 正在对片段 {i+1} 进行 RKNN 推理和解码...")
+            #     # The wenet_rknn_inference class now handles adding the batch dimension.
+            #     asr_result = self.asr_model(audio_feats)
+            #     
+            #     logging.info(f"片段 {i+1} 识别结果: '{asr_result}'")
+            #     full_transcription.append(asr_result)
+            #
+            # final_text = " ".join(full_transcription).strip()
+            # --- VAD 原始逻辑结束 ---
 
-                audio_feats = self.frontend.get_features(segment_audio)
-                
-                # --- FIX STARTS HERE: Pad or truncate features for fixed-size RKNN model ---
-                required_frames = 20  # Deduced from RKNN error: 32000 bytes / 4 bytes/float / 400 dims = 20 frames
-                current_frames = audio_feats.shape[0]
-                
-                if current_frames < required_frames:
-                    # Pad with zeros (silence)
-                    padding_size = required_frames - current_frames
-                    padding = np.zeros((padding_size, audio_feats.shape[1]), dtype=audio_feats.dtype)
-                    audio_feats = np.vstack([audio_feats, padding])
-                elif current_frames > required_frames:
-                    # Truncate to the required size
-                    audio_feats = audio_feats[:required_frames, :]
-                # --- FIX ENDS HERE ---
-
-                logging.info(f"步骤 3/3: 正在对片段 {i+1} 进行 RKNN 推理和解码...")
-                # The wenet_rknn_inference class now handles adding the batch dimension.
-                asr_result = self.asr_model(audio_feats)
-                
-                logging.info(f"片段 {i+1} 识别结果: '{asr_result}'")
-                full_transcription.append(asr_result)
-
-            final_text = " ".join(full_transcription).strip()
             total_time = time.time() - start_time
             logging.info(f"语音转文字完成，总耗时: {total_time:.2f} 秒。")
             logging.info(f"最终识别结果: '{final_text}'")
