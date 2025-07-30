@@ -22,6 +22,8 @@ tqdm
 typeguard
 tiktoken
 more-itertools
+numba
+regex
 
 # RKNN NPU 支持 (需要手动安装特定版本)
 # rknn-toolkit2-lite2 
