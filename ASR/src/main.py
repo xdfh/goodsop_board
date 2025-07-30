@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from pydub import AudioSegment
 
 from .asr_service import ASRService
-from .config import settings, LOGGING_CONFIG
+from .config import settings
 
 # 不再需要在这里应用日志配置
 # dictConfig(LOGGING_CONFIG)
@@ -108,11 +108,44 @@ async def transcribe_test(request: Request, file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     import uvicorn
-    # 将日志配置直接传递给 uvicorn
+
+    # 动态构建日志配置，确保日志级别被正确处理
+    log_level = settings.LOG_LEVEL.upper()
+    
+    # 确保日志级别是 logging 模块可以识别的常量
+    numeric_level = getattr(logging, log_level, None)
+    if not isinstance(numeric_level, int):
+        logging.warning(f"无效的日志级别: {log_level}。将回退到 INFO 级别。")
+        log_level = "INFO"
+
+    log_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {
+                "()": "uvicorn.logging.DefaultFormatter",
+                "fmt": "%(levelprefix)s %(asctime)s - %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+            },
+        },
+        "handlers": {
+            "default": {
+                "formatter": "default",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stderr",
+            },
+        },
+        "loggers": {
+            "": {"handlers": ["default"], "level": log_level},
+            "uvicorn.error": {"level": log_level},
+            "uvicorn.access": {"handlers": ["default"], "level": "INFO", "propagate": False},
+        },
+    }
+
     uvicorn.run(
         "main:app", 
         host=settings.HOST, 
         port=settings.PORT, 
         reload=True,
-        log_config=LOGGING_CONFIG
+        log_config=log_config
     ) 

@@ -87,28 +87,7 @@ class Settings(BaseSettings):
             file_secret_settings,
         )
 
-# 恢复并简化日志配置字典，以确保与Uvicorn的兼容性
-LOGGING_CONFIG = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "default": {
-            "()": "uvicorn.logging.DefaultFormatter",
-            "fmt": "%(levelprefix)s %(asctime)s - %(message)s",
-            "datefmt": "%Y-%m-%d %H:%M:%S",
-        },
-    },
-    "handlers": {
-        "default": {
-            "formatter": "default",
-            "class": "logging.StreamHandler",
-            "stream": "ext://sys.stderr",
-        },
-    },
-    "loggers": {
-        # 只配置 root logger，uvicorn会自动继承
-        "": {"handlers": ["default"], "level": "INFO"},
-    },
-}
+# 删除已被证明有问题的静态 LOGGING_CONFIG 字典
+# 我们将在 main.py 中根据 settings 动态创建它
 
 settings = Settings() 
