@@ -34,6 +34,9 @@ class ASRService:
                 try:
                     logging.info("检测到 NPU 模式，正在初始化 ASR 服务...")
                     
+                    # 0. 定义ASR模型文件所在的根目录
+                    model_dir = Path(settings.MODEL_DIR)
+
                     # 1. 初始化 VAD 模型 (它内部有自己的带LFR的WavFrontend)
                     logging.info("正在初始化 VAD 模型...")
                     self.vad_model = FSMNVad(model_dir=Path(settings.VAD_MODEL_DIR))
@@ -41,18 +44,23 @@ class ASRService:
 
                     # 2. 初始化 ASR 专用的特征提取器 (WavFrontend)，不使用LFR
                     logging.info("正在初始化 ASR 特征提取器 (无 LFR)...")
-                    # 注意：ASR模型的CMVN文件通常与VAD不同，这里我们使用配置中为ASR指定的AM_MVN_FILE
+                    am_mvn_path = model_dir / settings.AM_MVN_FILE
+                    logging.info(f"使用 ASR CMVN 文件: {am_mvn_path}")
                     self.asr_frontend = WavFrontend(
-                        cmvn_file=settings.AM_MVN_FILE,
-                        apply_lfr=False  # 关键：ASR模型需要80维特征，所以关闭LFR
+                        cmvn_file=str(am_mvn_path),
+                        apply_lfr=False  # ASR模型需要80维特征，所以关闭LFR
                     )
                     logging.info("ASR 特征提取器初始化完成。")
 
                     # 3. 初始化 RKNN ASR 推理模型
                     logging.info("正在初始化 WenetRknnInference (ASR 推理核心)...")
+                    rknn_model_path = model_dir / settings.RKNN_MODEL_FILE
+                    dict_path = model_dir / settings.DICT_FILE
+                    logging.info(f"使用 ASR RKNN 模型: {rknn_model_path}")
+                    logging.info(f"使用字典文件: {dict_path}")
                     self.asr_model = WenetRknnInference(
-                        model_path=settings.RKNN_MODEL_FILE,
-                        dict_path=settings.DICT_FILE
+                        model_path=str(rknn_model_path),
+                        dict_path=str(dict_path)
                     )
                     logging.info("WenetRknnInference 初始化完成。")
 
