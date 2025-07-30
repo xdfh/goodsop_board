@@ -58,7 +58,7 @@ RUN pip install --no-cache-dir --upgrade pip -i http://192.168.1.161:8081/reposi
     pip install --no-cache-dir -r requirements.prod.txt -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161 && \
     pip install --no-cache-dir /app/libs/*.whl -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161 && \
     git clone https://github.com/wenet-e2e/wenet.git && \
-    pip install --no-cache-dir -e ./wenet
+    pip install --no-cache-dir --no-deps -e ./wenet -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161
 
 # 步骤 2: 安装 torch 和 torchaudio
 # 我们最后安装 torch，以确保它的依赖不会被其他包覆盖，从而解决依赖冲突
