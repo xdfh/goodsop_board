@@ -29,14 +29,20 @@ class WenetRknnInference:
         print("--> 推理引擎准备就绪。")
 
     def __call__(self, audio_feats: torch.Tensor) -> str:
-        """
-        执行完整的推理流程。
-        """
-        # RKNN Lite需要numpy数组作为输入
-        feats_np = audio_feats.numpy()
-        
-        # 创建模型的第二个输入：特征长度
+        # The input 'audio_feats' is already a numpy array from asr_service.py.
+        # Calling .numpy() on a numpy array causes the AttributeError.
+        # We just need to ensure it's the correct type if it comes in as a Tensor.
+        if isinstance(audio_feats, torch.Tensor):
+            feats_np = audio_feats.numpy()
+        else:
+            feats_np = audio_feats # It's already a numpy array
+
+        # add a batch axis, shape (1, T, D)
+        if feats_np.ndim == 2:
+            feats_np = feats_np[None, ...]
+            
         seq_len = feats_np.shape[1]
+        # The second input to the rknn model is the sequence length
         lengths_np = np.array([seq_len]).astype(np.int64)
 
         # 1. 在NPU上执行编码器推理
