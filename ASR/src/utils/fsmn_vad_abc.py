@@ -139,28 +139,97 @@ class WavFrontend:
 
 
 # FSMN Vad Model
-class FSMNVad:
-    def __init__(self, model_dir: str):
-        config_path = Path(model_dir) / "fsmn-config.yaml"
-        with open(config_path, "rb") as f:
-            self.config = yaml.load(f, Loader=yaml.Loader)
+class FSMNVad(FSMNVadABC):
+    """
+    Wrapper for offline FSMN-VAD model.
+    Inherits from FSMNVadABC to reuse its robust _postprocess method.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Reset internal states, although it's an offline model,
+        # it's good practice to ensure a clean state for each new file.
+        self.all_reset_detection()
+
+    def segments_offline(self, waveform: np.ndarray) -> list:
+        """
+        Processes a full audio waveform to detect speech segments.
+        This is the main entry point for this class.
+        """
+        # Ensure the model is in a clean state before processing a new waveform.
+        self.all_reset_detection()
+
+        # Extract acoustic features from the raw waveform.
+        feats, self.vad_opts.frame_sample = self._extract_feature(waveform)
         
-        self.frontend = WavFrontend(
-            cmvn_file=Path(model_dir) / "fsmn-am.mvn",
-            **self.config["WavFrontend"]["frontend_conf"],
-        )
-        model_path = str(Path(model_dir) / "fsmnvad-offline.onnx")
-        self.vad = E2EVadModel(model_path, self.config["vadPostArgs"])
+        # Perform inference and get the speech segments.
+        segments, _ = self.infer_offline(feats, waveform, is_final=True)
+        return segments
 
-    def _extract_feature(self, waveform):
-        return self.frontend.get_features(waveform)
+    def infer_offline(self, feats: np.ndarray, waveform: np.ndarray, is_final: bool = True):
+        """
+        Performs the core inference and post-processing logic.
+        """
+        # Ensure input features are float32, as required by the ONNX model.
+        feats = feats.astype(np.float32)
+        
+        # Directly compute scores for the entire feature set.
+        self._compute_scores(feats)
+        
+        # Aggregate all computed scores.
+        scores = self._get_all_scores()
+        
+        # Use the robust post-processing logic from the base class.
+        return self._postprocess(scores, waveform, is_final=is_final)
 
-    def segments_offline(self, waveform: np.ndarray):
-        feats = self._extract_feature(waveform)
-        segments_part, _ = self.vad.infer_offline(
-            feats[None, ...], waveform[None, ...], is_final=True
-        )
-        return segments_part[0] if segments_part else []
+    def _get_all_scores(self) -> np.ndarray:
+        """
+        Concatenates score chunks into a single array.
+        """
+        if not self.scores:
+            return np.array([])
+        return np.concatenate(self.scores, axis=1)
+
+    def _compute_scores(self, feats: np.ndarray):
+        """
+        Runs the ONNX model with only the required 'feats' input.
+        This is the fix for the "Invalid input name: in_cache2" error.
+        """
+        # The offline model expects a single input 'feats' and returns a single output 'scores'.
+        scores, = self.model([feats])
+        self.scores.append(scores)
+
+    def _detect_common_frames(self):
+        # This method is for streaming mode and is not needed for offline processing.
+        pass
+
+    def _detect_last_frames(self):
+        # This method is for streaming mode and is not needed for offline processing.
+        pass
+
+
+# FSMN Vad Model
+# class FSMNVad:
+#     def __init__(self, model_dir: str):
+#         config_path = Path(model_dir) / "fsmn-config.yaml"
+#         with open(config_path, "rb") as f:
+#             self.config = yaml.load(f, Loader=yaml.Loader)
+        
+#         self.frontend = WavFrontend(
+#             cmvn_file=Path(model_dir) / "fsmn-am.mvn",
+#             **self.config["WavFrontend"]["frontend_conf"],
+#         )
+#         model_path = str(Path(model_dir) / "fsmnvad-offline.onnx")
+#         self.vad = E2EVadModel(model_path, self.config["vadPostArgs"])
+
+#     def _extract_feature(self, waveform):
+#         return self.frontend.get_features(waveform)
+
+#     def segments_offline(self, waveform: np.ndarray):
+#         feats = self._extract_feature(waveform)
+#         segments_part, _ = self.vad.infer_offline(
+#             feats[None, ...], waveform[None, ...], is_final=True
+#         )
+#         return segments_part[0] if segments_part else []
 
 
 class E2EVadModel:
@@ -195,14 +264,15 @@ class E2EVadModel:
         self.windows_detector.reset()
 
     def _compute_scores(self, feats: np.ndarray):
-        in_cache0 = np.zeros((1, 128, 7, 1), dtype=np.float32)
-        in_cache1 = np.zeros((1, 128, 7, 1), dtype=np.float32)
-        in_cache2 = np.zeros((1, 128, 1, 1), dtype=np.float32)
-        in_cache3 = np.zeros((1, 128, 1, 1), dtype=np.float32)
-        
-        scores, _, _, _, _ = self.model([feats, in_cache0, in_cache1, in_cache2, in_cache3])
+        # 离线模式下，我们直接传递特征，不需要缓存状态
+        scores, = self.model([feats])
+
+        self.scores.append(scores)
+        self.time_stamps.append(
+            (self.audio_chunk_left_samples / self.sample_rate,
+             self.audio_chunk_left_samples / self.sample_rate + self.vad_opts.frame_in_ms / 1000.0)
+        )
         self.frm_cnt += scores.shape[1]
-        self.scores = scores
         self.scores_offset += self.scores.shape[1]
 
     def infer_offline(self, feats: np.ndarray, waveform: np.ndarray, is_final: bool = True):
@@ -210,23 +280,23 @@ class E2EVadModel:
         feats = feats.astype(np.float32)
         self.waveform = waveform
         self._compute_scores(feats)
-        
-        if is_final:
-            self._detect_last_frames()
-        else:
-            self._detect_common_frames()
-        
-        segments = []
-        if self.output_data_buf:
-            for i in range(self.output_data_buf_offset, len(self.output_data_buf)):
-                buf = self.output_data_buf[i]
-                if buf.contain_seg_start_point and buf.contain_seg_end_point:
-                    segments.append([buf.start_ms, buf.end_ms])
-            self.output_data_buf_offset = len(self.output_data_buf)
-        
-        if is_final:
-            self.all_reset_detection()
-        return [segments], None
+        scores = self._get_all_scores()
+        return self._postprocess(scores, waveform, is_final=is_final)
+
+    def _get_all_scores(self):
+        # in case of short audio
+        if not self.scores:
+            return []
+        scores = np.concatenate(self.scores, axis=1)
+        return scores
+
+    def _postprocess(self, scores: Union[list, np.ndarray], waveform: np.ndarray, is_final: bool=True) -> Tuple[list, list]:
+        if isinstance(scores, tuple):
+            scores = scores[0]
+        if isinstance(scores, list):
+            if len(scores) > 0:
+                scores = np.concatenate(scores, axis=1)
+        return [], []
 
     def _detect_common_frames(self):
         for i in range(self.vad_opts.nn_eval_block_size - 1, -1, -1):
