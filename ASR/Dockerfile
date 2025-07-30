@@ -50,16 +50,19 @@ COPY ./ASR/libs /app/libs
 # 3. 一次性安装所有 Python 依赖 (来自 requirements.txt 和 .whl 文件)
 #    这可以更好地利用 Docker 缓存
 # 安装 Python 依赖
-# 我们将安装分为两步，以解决 torch 的 Illegal instruction 问题
+# 我们将安装分为两步，以解决 torch 的 Illegal instruction 和依赖冲突问题
 
-# 步骤 1: 安装 torch 和 torchaudio
-# 我们强制从 PyTorch 官方源下载，以确保获取与 CPU 架构兼容的版本
-RUN pip install --no-cache-dir torch==2.4.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cpu
-
-# 步骤 2: 安装 requirements.txt 中的其余依赖 和 本地 wheel 包
+# 步骤 1: 安装 requirements.txt 中的依赖 和 本地 wheel 包
 RUN pip install --no-cache-dir --upgrade pip -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161 && \
     pip install --no-cache-dir -r requirements.prod.txt -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161 && \
     pip install --no-cache-dir /app/libs/*.whl -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161
+
+# 步骤 2: 安装 torch 和 torchaudio
+# 我们最后安装 torch，以确保它的依赖不会被其他包覆盖，从而解决依赖冲突
+RUN pip install --no-cache-dir torch==2.4.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cpu
+
+# 设置工作目录
+WORKDIR /
 
 # --- 应用程序代码 ---
 
