@@ -35,6 +35,7 @@ Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg\n\
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libatomic1 \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # --- 依赖项设置 ---
@@ -52,10 +53,12 @@ COPY ./ASR/libs /app/libs
 # 安装 Python 依赖
 # 我们将安装分为两步，以解决 torch 的 Illegal instruction 和依赖冲突问题
 
-# 步骤 1: 安装 requirements.txt 中的依赖 和 本地 wheel 包
+# 步骤 1: 安装通用依赖，包括从 git 克隆并安装 wenet
 RUN pip install --no-cache-dir --upgrade pip -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161 && \
     pip install --no-cache-dir -r requirements.prod.txt -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161 && \
-    pip install --no-cache-dir /app/libs/*.whl -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161
+    pip install --no-cache-dir /app/libs/*.whl -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161 && \
+    git clone https://github.com/wenet-e2e/wenet.git && \
+    pip install --no-cache-dir -e ./wenet
 
 # 步骤 2: 安装 torch 和 torchaudio
 # 我们最后安装 torch，以确保它的依赖不会被其他包覆盖，从而解决依赖冲突
