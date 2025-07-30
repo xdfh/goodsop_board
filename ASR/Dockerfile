@@ -44,38 +44,47 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY ASR/libs/librknnrt.so /usr/lib/
 RUN ldconfig
 
-# 2. 复制所有依赖相关的文件
+#
+# --- 依赖安装阶段 (已优化缓存) ---
+#
+
+# 1. 单独复制 requirements.txt
 COPY ASR/requirements.prod.txt .
+
+# 2. 安装 pip 和 requirements.txt 中的依赖
+#    只要 requirements.txt 不变，这一层就会被缓存
+RUN pip install --no-cache-dir --upgrade pip -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161 && \
+    pip install --no-cache-dir -r requirements.prod.txt -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161
+
+# 3. 单独复制本地 libs
 COPY ./ASR/libs /app/libs
 
-# 3. 一次性安装所有 Python 依赖 (来自 requirements.txt 和 .whl 文件)
-#    这可以更好地利用 Docker 缓存
-# 安装 Python 依赖
-# 我们将安装分为两步，以解决 torch 的 Illegal instruction 和依赖冲突问题
+# 4. 安装本地 whl 包
+#    只要 libs 文件夹内容不变，这一层就会被缓存
+RUN pip install --no-cache-dir /app/libs/*.whl -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161
 
-# 步骤 1: 安装通用依赖，包括从 git 克隆并安装 wenet
-RUN pip install --no-cache-dir --upgrade pip -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161 && \
-    pip install --no-cache-dir -r requirements.prod.txt -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161 && \
-    pip install --no-cache-dir /app/libs/*.whl -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161 && \
-    git config --global http.proxy http://192.168.1.31:7897 && \
+# 5. 安装 openai-whisper (隔离依赖)
+RUN pip install --no-cache-dir --no-deps openai-whisper -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161
+
+# 6. 安装 wenet (隔离依赖)
+RUN git config --global http.proxy http://192.168.1.31:7897 && \
     git config --global https.proxy https://192.168.1.31:7897 && \
     git clone https://github.com/wenet-e2e/wenet.git && \
     pip install --no-cache-dir --no-deps -e ./wenet -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161
 
-# 步骤 2: 安装 torch 和 torchaudio
-# 我们最后安装 torch，以确保它的依赖不会被其他包覆盖，从而解决依赖冲突
-# 我们降级到 2.2.0，尝试解决 Illegal instruction 问题，这可能是由于新版本 PyTorch 的指令集与 RK3562 CPU 不兼容
+# 7. 安装 torch 和 torchaudio (最耗时的下载)
+#    这一层也稳定不变
 RUN pip install --no-cache-dir torch==2.2.0 torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cpu
+
+
+# --- 应用程序代码 (经常变动) ---
+#
+# 将代码复制操作放在最后，这样修改代码不会破坏前面的依赖缓存
+COPY ASR/config ./config
+COPY ASR/src ./src
 
 # 设置工作目录
 WORKDIR /
-
-# --- 应用程序代码 ---
-
-# 复制配置文件和应用程序源代码
-# 将它们放在依赖安装之后，这样代码变更时不会导致依赖重新安装
-COPY ASR/config ./config
-COPY ASR/src ./src
 
 # --- 运行配置 ---
 
