@@ -10,11 +10,6 @@ pydub
 soundfile
 kaldi_native_fbank
 
-# --- 新增：为 Wenet 解码器添加 PyTorch 依赖 ---
-# 我们移除 +cpu 标签，让 pip 在 arm64 环境中寻找正确的 CPU 版本
-torch==2.4.0
-torchaudio==2.4.0
-
 # 模型推理
 numpy<2.0
 pyyaml
