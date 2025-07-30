@@ -1,4 +1,5 @@
-# 核心框架
+# 生产环境的核心依赖
+
 fastapi
 uvicorn
 pydantic-settings
@@ -9,7 +10,12 @@ pydub
 soundfile
 kaldi_native_fbank
 
-# 模型与推理
+# --- 新增：为 Wenet 解码器添加 PyTorch 依赖 ---
+# 我们使用与转换环境一致的 CPU-only 版本，以保证兼容性并减小镜像体积
+torch==2.4.0+cpu
+torchaudio==2.4.0+cpu
+
+# 模型推理
 numpy<2.0
 pyyaml
 onnxruntime
