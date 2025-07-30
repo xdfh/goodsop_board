@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
+
 import os
 import logging
 from functools import partial
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 from typing import Dict, Any, Tuple, Callable
 
 # 1. 这是我们的自定义设置加载器。
@@ -86,9 +88,9 @@ LOGGING_CONFIG = {
         },
     },
     "loggers": {
-        "root": {"handlers": ["default"], "level": "INFO"},
-        "uvicorn.error": {"level": "INFO"},
-        "uvicorn.access": {"handlers": ["default"], "level": "INFO", "propagate": False},
+        "root": {"handlers": ["default"], "level": logging.INFO},
+        "uvicorn.error": {"level": logging.INFO},
+        "uvicorn.access": {"handlers": ["default"], "level": logging.INFO, "propagate": False},
     },
 }
 
