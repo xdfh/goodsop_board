@@ -84,13 +84,25 @@ class WavFrontend:
     def _load_cmvn(cmvn_file: str) -> np.ndarray:
         with open(cmvn_file, "r", encoding="utf-8") as f:
             lines = f.readlines()
+        
         means_list, vars_list = [], []
-        for line in lines:
+        for i, line in enumerate(lines):
             parts = line.strip().split()
+            if not parts:
+                continue
+
+            # The actual data is on the line *after* the tag.
             if parts[0] == "<AddShift>":
-                means_list = list(parts[3:-1])
+                if i + 1 < len(lines):
+                    # Format is typically: <RealMatrix> N M ... data ... ]
+                    means_list = lines[i + 1].split()[3:-1]
             elif parts[0] == "<Rescale>":
-                vars_list = list(parts[3:-1])
+                if i + 1 < len(lines):
+                    vars_list = lines[i + 1].split()[3:-1]
+        
+        if not means_list or not vars_list:
+            raise ValueError(f"Could not parse means or vars from cmvn file: {cmvn_file}")
+
         means = np.array(means_list, dtype=np.float64)
         vars = np.array(vars_list, dtype=np.float64)
         return np.array([means, vars])
