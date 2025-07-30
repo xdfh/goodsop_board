@@ -57,6 +57,8 @@ COPY ./ASR/libs /app/libs
 RUN pip install --no-cache-dir --upgrade pip -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161 && \
     pip install --no-cache-dir -r requirements.prod.txt -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161 && \
     pip install --no-cache-dir /app/libs/*.whl -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161 && \
+    git config --global http.proxy http://192.168.1.31:7897 && \
+    git config --global https.proxy https://192.168.1.31:7897 && \
     git clone https://github.com/wenet-e2e/wenet.git && \
     pip install --no-cache-dir --no-deps -e ./wenet -i http://192.168.1.161:8081/repository/pypi-group/simple --trusted-host 192.168.1.161
 
