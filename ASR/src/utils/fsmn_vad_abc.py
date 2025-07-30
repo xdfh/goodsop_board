@@ -49,6 +49,8 @@ class WavFrontend:
         frame_shift = kwargs.get("frame_shift", 10)
         n_mels = kwargs.get("n_mels", 80)
         fs = kwargs.get("fs", 16000)
+        self.lfr_m = kwargs.get("lfr_m", 5) # Default to 5 to get 80 -> 400
+        self.lfr_n = kwargs.get("lfr_n", 1)
         
         opts = knf.FbankOptions()
         opts.frame_opts.samp_freq = fs
@@ -78,7 +80,31 @@ class WavFrontend:
 
     def get_features(self, waveform: np.ndarray) -> np.ndarray:
         fbank = self.fbank(waveform)
-        return self._apply_cmvn(fbank)
+        # Re-enable LFR
+        lfr_feats = self._apply_lfr(fbank)
+        return self._apply_cmvn(lfr_feats)
+
+    def _apply_lfr(self, inputs: np.ndarray) -> np.ndarray:
+        T, D = inputs.shape
+        T_lfr = (T + self.lfr_n - 1) // self.lfr_n
+        
+        LFR_inputs = np.zeros((T_lfr, D * self.lfr_m), dtype=np.float32)
+
+        for i in range(T_lfr):
+            start = i * self.lfr_n
+            end = start + self.lfr_m
+            
+            # Pad frames if necessary
+            current_frames = inputs[start:end, :]
+            num_frames, num_dims = current_frames.shape
+            
+            if num_frames < self.lfr_m:
+                padding = np.zeros((self.lfr_m - num_frames, num_dims), dtype=np.float32)
+                current_frames = np.vstack((current_frames, padding))
+
+            LFR_inputs[i, :] = current_frames.flatten()
+            
+        return LFR_inputs
 
     @staticmethod
     def _load_cmvn(cmvn_file: str) -> np.ndarray:
