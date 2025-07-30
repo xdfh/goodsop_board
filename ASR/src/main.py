@@ -6,6 +6,7 @@ from .asr_service import ASRService
 import io
 import traceback
 import time
+import logging
 from pydub import AudioSegment
 from .config import settings  # 导入新的配置对象
 
@@ -16,16 +17,16 @@ asr_service_instance = {"instance": None}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 应用启动时执行
-    print("--- 应用启动 ---")
-    # 新增调试探针：打印出最终生效的设备配置
-    print(f">>> main.py: Final ASR_DEVICE = {settings.ASR_DEVICE}")
+    logging.info("--- 应用启动 ---")
+    # 新增调试探针：使用 logging 打印出最终生效的设备配置
+    logging.info(f">>> main.py: Final ASR_DEVICE = {settings.ASR_DEVICE}")
     asr_service_instance["instance"] = ASRService(
         model_dir=settings.MODEL_DIR,
         device=settings.ASR_DEVICE
     )
     yield
     # 应用关闭时执行
-    print("--- 应用关闭 ---")
+    logging.info("--- 应用关闭 ---")
     asr_service_instance["instance"] = None
 
 app = FastAPI(
