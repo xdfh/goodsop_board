@@ -206,6 +206,8 @@ class E2EVadModel:
         self.scores_offset += self.scores.shape[1]
 
     def infer_offline(self, feats: np.ndarray, waveform: np.ndarray, is_final: bool = True):
+        # 确保输入数据类型为 float32，以匹配 ONNX 模型的要求
+        feats = feats.astype(np.float32)
         self.waveform = waveform
         self._compute_scores(feats)
         
