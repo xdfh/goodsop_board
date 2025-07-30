@@ -51,7 +51,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
     -r requirements.prod.txt \
     -i http://192.168.1.161:8081/repository/pypi-group/simple \
-    --trusted-host 192.168.1.161 && \
+    --trusted-host 192.168.1.161 \
+    --extra-index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir \
     /app/libs/*.whl \
     -i http://192.168.1.161:8081/repository/pypi-group/simple \
