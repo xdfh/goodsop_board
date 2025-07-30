@@ -148,5 +148,6 @@ if __name__ == "__main__":
         host=settings.HOST, 
         port=settings.PORT, 
         reload=True,
-        log_config=log_config
+        log_config=log_config,
+        reload_dirs=["/src"]  # 明确指定只监控 /src 目录
     ) 
