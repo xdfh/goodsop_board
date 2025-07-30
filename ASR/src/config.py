@@ -53,10 +53,16 @@ class Settings(BaseSettings):
     # 为所有配置项提供类型提示和默认值
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    MODEL_DIR: str = "models/default_chinese_model"
     ASR_DEVICE: str = "cpu"
-    LOG_LEVEL: str = "INFO" # 新增: 声明 LOG_LEVEL 配置项
+    LOG_LEVEL: str = "INFO"
     
+    # --- 新增：在这里声明所有与模型文件相关的配置项 ---
+    MODEL_DIR: str = "models/default_model"
+    RKNN_MODEL_FILE: str = "default_encoder.rknn"
+    DICT_FILE: str = "dict.txt"
+    VAD_MODEL_DIR: str = "models/default_model"
+    AM_MVN_FILE: str = "am.mvn"
+
     # 日志配置
     LOGGING_CONFIG: Dict[str, Any] = {
         "version": 1,

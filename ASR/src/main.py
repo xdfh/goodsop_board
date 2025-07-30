@@ -20,10 +20,11 @@ async def lifespan(app: FastAPI):
     logging.info("--- 应用启动 ---")
     # 新增调试探针：使用 logging 打印出最终生效的设备配置
     logging.info(f">>> main.py: Final ASR_DEVICE = {settings.ASR_DEVICE}")
-    asr_service_instance["instance"] = ASRService(
-        model_dir=settings.MODEL_DIR,
-        device=settings.ASR_DEVICE
-    )
+    logging.info(f">>> main.py: Final MODEL_DIR = {settings.MODEL_DIR}")
+    
+    # --- 修改: 传递整个 settings 对象 ---
+    # ASRService 将从 settings 对象中自行获取所需的所有路径
+    asr_service_instance["instance"] = ASRService(settings=settings)
     yield
     # 应用关闭时执行
     logging.info("--- 应用关闭 ---")
