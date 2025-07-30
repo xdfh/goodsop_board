@@ -2,6 +2,7 @@ import io
 import time
 import traceback
 import logging
+from logging.config import dictConfig
 
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
@@ -9,7 +10,10 @@ from contextlib import asynccontextmanager
 from pydub import AudioSegment
 
 from .asr_service import ASRService
-from .config import settings 
+from .config import settings, LOGGING_CONFIG
+
+# 在应用启动前，应用日志配置
+dictConfig(LOGGING_CONFIG)
 
 # --- 应用启动事件处理器 ---
 @asynccontextmanager
@@ -104,5 +108,5 @@ async def transcribe_test(request: Request, file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     import uvicorn
-    # 使用 settings 对象中的配置来运行 uvicorn
+    # uvicorn 会自动使用已配置的 root logger
     uvicorn.run("main:app", host=settings.HOST, port=settings.PORT, reload=True) 

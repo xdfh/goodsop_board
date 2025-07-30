@@ -60,62 +60,36 @@ class Settings(BaseSettings):
     MODEL_DIR: str = "models/default_model"
     RKNN_MODEL_FILE: str = "default_encoder.rknn"
     DICT_FILE: str = "dict.txt"
-    VAD_MODEL_DIR: str = "models/default_model"
+    VAD_MODEL_DIR: str = "/home/cat/data/asr/sense"
     AM_MVN_FILE: str = "am.mvn"
 
-    # 日志配置
-    LOGGING_CONFIG: Dict[str, Any] = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "default": {
-                "()": "uvicorn.logging.DefaultFormatter",
-                "fmt": "%(levelprefix)s %(asctime)s - %(message)s",
-                "use_colors": None,
-            },
-            "access": {
-                "()": "uvicorn.logging.AccessFormatter",
-                "fmt": '%(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s',
-            },
-        },
-        "handlers": {
-            "default": {
-                "formatter": "default",
-                "class": "logging.StreamHandler",
-                "stream": "ext://sys.stderr",
-            },
-            "access": {
-                "formatter": "access",
-                "class": "logging.StreamHandler",
-                "stream": "ext://sys.stdout",
-            },
-        },
-        "loggers": {
-            "": {"handlers": ["default"], "level": logging.INFO},
-            "uvicorn.error": {"level": logging.INFO},
-            "uvicorn.access": {"handlers": ["access"], "level": logging.INFO, "propagate": False},
-        },
-    }
+    class Config:
+        env_file = ".env"
+        env_file_encoding = 'utf-8'
 
-    model_config = SettingsConfigDict(env_file_encoding='utf-8')
-
-    # 2. 这是在 pydantic-settings 中添加自定义设置源的正确方法
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticSettingsSource,
-        env_settings: PydanticSettingsSource,
-        dotenv_settings: PydanticSettingsSource,
-        file_secret_settings: PydanticSettingsSource,
-    ) -> Tuple[PydanticSettingsSource, ...]:
-        return (
-            # 使用 functools.partial 来“预填充”我们的加载函数所需的 settings_cls 参数
-            partial(py_file_settings_source, settings_cls),
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            file_secret_settings,
-        )
+# 重新添加标准的日志配置字典
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "default": {
+            "()": "uvicorn.logging.DefaultFormatter",
+            "fmt": "%(levelprefix)s %(asctime)s - %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+    },
+    "handlers": {
+        "default": {
+            "formatter": "default",
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stderr",
+        },
+    },
+    "loggers": {
+        "root": {"handlers": ["default"], "level": "INFO"},
+        "uvicorn.error": {"level": "INFO"},
+        "uvicorn.access": {"handlers": ["default"], "level": "INFO", "propagate": False},
+    },
+}
 
 settings = Settings() 
