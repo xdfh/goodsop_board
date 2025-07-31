@@ -20,6 +20,10 @@ RUN apt-get update && \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# 关键修复：恢复复制并注册底层的 NPU 驱动库
+COPY ASR/libs/librknnrt.so /usr/lib/
+RUN ldconfig
+
 # 将依赖文件复制到工作目录
 COPY ASR/requirements.prod.txt .
 
