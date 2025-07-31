@@ -117,30 +117,61 @@ class WavFrontend:
 
     @staticmethod
     def _load_cmvn(cmvn_file: str) -> np.ndarray:
+        """
+        Loads CMVN stats from a Kaldi-style text file.
+        This parser is robust and can handle stats spanning multiple lines.
+        """
+        add_shift_values = []
+        rescale_values = []
+        
         with open(cmvn_file, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-        
-        means_list, vars_list = [], []
-        for i, line in enumerate(lines):
-            parts = line.strip().split()
-            if not parts:
-                continue
+            # States: 0=outside, 1=reading_shift, 2=reading_rescale
+            state = 0
+            for line in f:
+                # Handle entering a new state
+                if "<AddShift>" in line:
+                    state = 1
+                    line = line.split("<AddShift>")[-1]
+                
+                if "<Rescale>" in line:
+                    state = 2
+                    line = line.split("<Rescale>")[-1]
 
-            # The actual data is on the line *after* the tag.
-            if parts[0] == "<AddShift>":
-                if i + 1 < len(lines):
-                    # Format is typically: <RealMatrix> N M ... data ... ]
-                    means_list = lines[i + 1].split()[3:-1]
-            elif parts[0] == "<Rescale>":
-                if i + 1 < len(lines):
-                    vars_list = lines[i + 1].split()[3:-1]
-        
-        if not means_list or not vars_list:
-            raise ValueError(f"Could not parse means or vars from cmvn file: {cmvn_file}")
+                # Process content based on state
+                if state in [1, 2]:
+                    line = line.split("</")[0]
+                    parts = line.strip().split()
+                    for p in parts:
+                        if p in ['[', ']']:
+                            continue
+                        try:
+                            val = float(p)
+                            if state == 1:
+                                add_shift_values.append(val)
+                            else: # state == 2
+                                rescale_values.append(val)
+                        except ValueError:
+                            pass
+                
+                # Handle exiting a state
+                if "</AddShift>" in line:
+                    state = 0
+                if "</Rescale>" in line:
+                    state = 0
 
-        means = np.array(means_list, dtype=np.float64)
-        vars = np.array(vars_list, dtype=np.float64)
-        return np.array([means, vars])
+        # Kaldi's AddShift component contains negative means (-mean).
+        # Our formula is (inputs - mean), so we need to negate the AddShift values.
+        means = -np.array(add_shift_values, dtype=np.float32)
+
+        # Kaldi's Rescale component is the scaling factor (1/stddev).
+        rescales = np.array(rescale_values, dtype=np.float32)
+        
+        if means.ndim != 1 or rescales.ndim != 1 or means.shape != rescales.shape:
+             raise ValueError(f"CMVN file parsing error: Mismatch in loaded stats shapes. Means: {means.shape}, Rescales: {rescales.shape}")
+        
+        logging.info(f"Loaded CMVN stats from {cmvn_file} with shape: {means.shape}")
+
+        return np.array([means, rescales])
 
 
 # Helper class for VAD options
