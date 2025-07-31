@@ -225,7 +225,7 @@ class VADXOptions:
     def __init__(self, **kwargs):
         self.frame_in_ms = kwargs.get("frame_in_ms", 10)
         # Lowered threshold from 0.9, which was too strict, to a more reasonable 0.5
-        self.speech_noise_thres = kwargs.get("speech_noise_thres", 0.5)
+        self.speech_noise_thres = kwargs.get("speech_noise_thres", 0.6) # 明确阈值
         self.min_speech_duration_ms = kwargs.get("min_speech_duration_ms", 150)
         self.min_silence_duration_ms = kwargs.get("min_silence_duration_ms", 50)
 
@@ -277,9 +277,11 @@ class FSMNVadABC:
         state = State.SILENCE
         start_frame = 0
         
-        min_speech_frames = self.vad_opts.min_speech_duration_ms // self.vad_opts.frame_in_ms
-        min_silence_frames = self.vad_opts.min_silence_duration_ms // self.vad_opts.frame_in_ms
-        
+        frame_in_ms = self.vad_opts.frame_in_ms
+        min_speech_frames = self.vad_opts.min_speech_duration_ms // frame_in_ms
+        min_silence_frames = self.vad_opts.min_silence_duration_ms // frame_in_ms
+        speech_noise_thres = self.vad_opts.speech_noise_thres
+
         speech_frames_count = 0
         silence_frames_count = 0
 
@@ -289,7 +291,7 @@ class FSMNVadABC:
         for i in range(scores.shape[1]):
             speech_prob = scores[0, i, 1] if scores.shape[2] > 1 else (1.0 - scores[0, i, 0])
             max_speech_prob = max(max_speech_prob, speech_prob)
-            is_speech_frame = speech_prob > self.vad_opts.speech_noise_thres
+            is_speech_frame = speech_prob > speech_noise_thres
 
             if state == State.SILENCE:
                 if is_speech_frame:
@@ -306,10 +308,11 @@ class FSMNVadABC:
                     silence_frames_count += 1
                     if silence_frames_count >= min_silence_frames:
                         end_frame = i - silence_frames_count + 1
-                        start_ms = start_frame * self.vad_opts.frame_in_ms
-                        end_ms = end_frame * self.vad_opts.frame_in_ms
-                        if end_ms > start_ms:
-                            segments.append([start_ms, end_ms])
+                        # Logic Correction: Ensure segment is added even if it's the last frame
+                        if end_frame > start_frame:
+                             start_ms = start_frame * frame_in_ms
+                             end_ms = end_frame * frame_in_ms
+                             segments.append([start_ms, end_ms])
                         state = State.SILENCE
                         speech_frames_count = 0
                 else:
@@ -318,16 +321,16 @@ class FSMNVadABC:
         # If audio ends while in speech state
         if state == State.SPEECH:
             end_frame = scores.shape[1]
-            start_ms = start_frame * self.vad_opts.frame_in_ms
-            end_ms = end_frame * self.vad_opts.frame_in_ms
-            if end_ms > start_ms:
+            if end_frame > start_frame:
+                start_ms = start_frame * frame_in_ms
+                end_ms = end_frame * frame_in_ms
                 segments.append([start_ms, end_ms])
         
         # Log debugging information if no segments are found
         if not segments:
             logging.warning(f"VAD post-processing found no segments. "
                             f"Max speech probability in audio was {max_speech_prob:.4f} "
-                            f"(Threshold is {self.vad_opts.speech_noise_thres}).")
+                            f"(Threshold is {speech_noise_thres}).")
                 
         return segments
     
