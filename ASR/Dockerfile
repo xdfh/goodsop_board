@@ -20,15 +20,18 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # 将依赖文件复制到工作目录
-# 关键修复：所有 COPY 指令的源路径都必须相对于构建上下文（项目根目录），因此需要 'ASR/' 前缀
 COPY ASR/requirements.prod.txt .
 
-# 安装 Python 依赖
-RUN pip install --no-cache-dir -r requirements.prod.txt
+# 安装 Python 依赖，恢复使用本地镜像源以解决网络问题
+RUN pip install --no-cache-dir -r requirements.prod.txt \
+    -i http://192.168.1.161:8081/repository/pypi-group/simple \
+    --trusted-host 192.168.1.161
 
 # 复制本地依赖库并安装
 COPY ASR/libs ./libs
-RUN pip install --no-cache-dir /app/libs/*.whl
+RUN pip install --no-cache-dir /app/libs/*.whl \
+    -i http://192.168.1.161:8081/repository/pypi-group/simple \
+    --trusted-host 192.168.1.161
 
 # 复制配置文件和源代码
 COPY ASR/config ./config
