@@ -11,6 +11,7 @@ import numpy as np
 import yaml
 from onnxruntime import (GraphOptimizationLevel, InferenceSession,
                          SessionOptions)
+import re
 
 
 # VAD Onnx Model Runtime
@@ -118,46 +119,37 @@ class WavFrontend:
     @staticmethod
     def _load_cmvn(cmvn_file: str) -> np.ndarray:
         """
-        Loads CMVN stats from a Kaldi-style text file.
-        This parser is robust and can handle stats spanning multiple lines.
+        Loads CMVN stats from a Kaldi-style text file using regular expressions
+        to robustly parse the data within the [...] brackets, ignoring metadata.
         """
+        with open(cmvn_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Regex to find content inside the first pair of square brackets [...]
+        bracket_regex = r'\[(.*?)\]'
+
         add_shift_values = []
         rescale_values = []
-        
-        with open(cmvn_file, "r", encoding="utf-8") as f:
-            # States: 0=outside, 1=reading_shift, 2=reading_rescale
-            state = 0
-            for line in f:
-                # Handle entering a new state
-                if "<AddShift>" in line:
-                    state = 1
-                    line = line.split("<AddShift>")[-1]
-                
-                if "<Rescale>" in line:
-                    state = 2
-                    line = line.split("<Rescale>")[-1]
 
-                # Process content based on state
-                if state in [1, 2]:
-                    line = line.split("</")[0]
-                    parts = line.strip().split()
-                    for p in parts:
-                        if p in ['[', ']']:
-                            continue
-                        try:
-                            val = float(p)
-                            if state == 1:
-                                add_shift_values.append(val)
-                            else: # state == 2
-                                rescale_values.append(val)
-                        except ValueError:
-                            pass
-                
-                # Handle exiting a state
-                if "</AddShift>" in line:
-                    state = 0
-                if "</Rescale>" in line:
-                    state = 0
+        # Find content within <AddShift> ... </AddShift>
+        try:
+            # Isolate the entire <AddShift> block
+            shift_block = re.search(r'<AddShift>(.*?)</AddShift>', content, re.DOTALL).group(1)
+            # Find only the content inside the brackets within this block
+            shift_data_str = re.search(bracket_regex, shift_block, re.DOTALL).group(1)
+            add_shift_values = [float(x) for x in shift_data_str.strip().split()]
+        except (AttributeError, IndexError):
+            raise ValueError(f"Could not parse data inside [...] in the <AddShift> block of {cmvn_file}")
+
+        # Find content within <Rescale> ... </Rescale>
+        try:
+            # Isolate the entire <Rescale> block
+            rescale_block = re.search(r'<Rescale>(.*?)</Rescale>', content, re.DOTALL).group(1)
+            # Find only the content inside the brackets within this block
+            rescale_data_str = re.search(bracket_regex, rescale_block, re.DOTALL).group(1)
+            rescale_values = [float(x) for x in rescale_data_str.strip().split()]
+        except (AttributeError, IndexError):
+            raise ValueError(f"Could not parse data inside [...] in the <Rescale> block of {cmvn_file}")
 
         # Kaldi's AddShift component contains negative means (-mean).
         # Our formula is (inputs - mean), so we need to negate the AddShift values.
