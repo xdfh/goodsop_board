@@ -16,6 +16,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     libatomic1 \
     git \
+    ffmpeg \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -26,6 +27,9 @@ COPY ASR/requirements.prod.txt .
 RUN pip install --no-cache-dir -r requirements.prod.txt \
     -i http://192.168.1.161:8081/repository/pypi-group/simple \
     --trusted-host 192.168.1.161
+
+# 关键修复：独立安装 torch 和 torchaudio，使用其官方源
+RUN pip install --no-cache-dir torch==2.2.0 torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cpu
 
 # 复制本地依赖库并安装
 COPY ASR/libs ./libs
