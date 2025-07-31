@@ -229,10 +229,12 @@ class FSMNVadABC:
         # 解决TypeError: got multiple values for keyword argument 'lfr_m'
         # 从字典中弹出 lfr 参数，以避免通过 **frontend_conf 重复传递。
         # 同时为这些参数设置默认值。
-        lfr_m_val = frontend_conf.pop('lfr_m', 7)  # VAD am.mvn 需要 560 维特征 (80 * 7)
-        lfr_n_val = frontend_conf.pop('lfr_n', 1)
+        frontend_conf.pop('lfr_m', None)  # 强制移除配置文件中的 lfr_m，使用下面的硬编码值
+        frontend_conf.pop('lfr_n', None)  # 强制移除配置文件中的 lfr_n
+        lfr_m_val = 7  # VAD am.mvn 需要 560 维特征 (80 * 7)
+        lfr_n_val = 1
 
-        # VAD的WavFrontend需要LFR来输出400维特征
+        # VAD的WavFrontend需要LFR来输出目标维度特征
         self.frontend = WavFrontend(
             cmvn_file=cmvn_path,
             apply_lfr=True,  # VAD模型强制使用LFR
