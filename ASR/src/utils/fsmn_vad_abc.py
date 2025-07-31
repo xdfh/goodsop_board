@@ -119,59 +119,78 @@ class WavFrontend:
     @staticmethod
     def _load_cmvn(cmvn_file: str) -> np.ndarray:
         """
-        Loads CMVN stats from a file.
-        It can handle Kaldi-style text files with <AddShift> and <Rescale> tags,
-        as well as plain text files with two rows of space-separated numbers,
-        where the first row is for means and the second for standard deviations.
+        Loads CMVN stats from a file. It can handle multiple Kaldi formats:
+        1. Nnet1 text format (e.g., am.mvn) without XML-style closing tags.
+        2. XML-style text format with closing tags.
+        3. Plain text format with two rows of space-separated numbers.
         """
         with open(cmvn_file, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # Check for Kaldi-style XML tags
-        if '<AddShift>' in content and '<Rescale>' in content:
+        add_shift_values = None
+        rescale_values = None
+
+        # Try parsing Kaldi Nnet1 format (e.g., am.mvn: has <AddShift> but no </AddShift>)
+        if '<AddShift>' in content and '</AddShift>' not in content:
             try:
-                # Regex to find content inside the first pair of square brackets [...]
-                bracket_regex = r'\[(.*?)\]'
+                add_shift_pos = content.find('<AddShift>')
+                rescale_pos = content.find('<Rescale>')
                 
-                # Isolate the entire <AddShift> block
-                shift_block = re.search(r'<AddShift>(.*?)</AddShift>', content, re.DOTALL).group(1)
-                # Find only the content inside the brackets within this block
-                shift_data_str = re.search(bracket_regex, shift_block, re.DOTALL).group(1)
-                add_shift_values = [float(x) for x in shift_data_str.strip().split()]
+                if add_shift_pos != -1 and rescale_pos != -1:
+                    shift_block = content[add_shift_pos:rescale_pos]
+                    rescale_block = content[rescale_pos:]
+                    
+                    shift_data_match = re.search(r'\[(.*?)\]', shift_block, re.DOTALL)
+                    rescale_data_match = re.search(r'\[(.*?)\]', rescale_block, re.DOTALL)
 
-                # Isolate the entire <Rescale> block
-                rescale_block = re.search(r'<Rescale>(.*?)</Rescale>', content, re.DOTALL).group(1)
-                # Find only the content inside the brackets within this block
-                rescale_data_str = re.search(bracket_regex, rescale_block, re.DOTALL).group(1)
-                rescale_values = [float(x) for x in rescale_data_str.strip().split()]
+                    if shift_data_match and rescale_data_match:
+                        add_shift_values = [float(x) for x in shift_data_match.group(1).strip().split()]
+                        rescale_values = [float(x) for x in rescale_data_match.group(1).strip().split()]
+            except Exception as e:
+                logging.warning(f"Could not parse '{cmvn_file}' as Kaldi Nnet1 format: {e}")
+                pass  # Fall through to the next method
 
-                # Kaldi's AddShift component contains negative means (-mean).
-                means = -np.array(add_shift_values, dtype=np.float32)
-                # Kaldi's Rescale component is the scaling factor (1/stddev).
-                rescales = np.array(rescale_values, dtype=np.float32)
-            except (AttributeError, IndexError):
-                 raise ValueError(f"Could not parse data inside [...] in the <AddShift> or <Rescale> block of {cmvn_file}")
+        # If Nnet1 parsing failed or wasn't applicable, try XML-style parsing
+        if add_shift_values is None:
+            if '<AddShift>' in content and '</AddShift>' in content:
+                try:
+                    shift_block_match = re.search(r'<AddShift>(.*?)</AddShift>', content, re.DOTALL)
+                    rescale_block_match = re.search(r'<Rescale>(.*?)</Rescale>', content, re.DOTALL)
 
-        else:
-            # Fallback to plain text format
+                    if shift_block_match and rescale_block_match:
+                        shift_data_match = re.search(r'\[(.*?)\]', shift_block_match.group(1), re.DOTALL)
+                        rescale_data_match = re.search(r'\[(.*?)\]', rescale_block_match.group(1), re.DOTALL)
+
+                        if shift_data_match and rescale_data_match:
+                            add_shift_values = [float(x) for x in shift_data_match.group(1).strip().split()]
+                            rescale_values = [float(x) for x in rescale_data_match.group(1).strip().split()]
+                except Exception as e:
+                    logging.warning(f"Could not parse '{cmvn_file}' as XML-style format: {e}")
+                    pass # Fall through
+        
+        # If both structured formats fail, try plain text
+        if add_shift_values is None:
             try:
                 lines = content.strip().split('\n')
-                if len(lines) != 2:
-                    raise ValueError(f"Plain text CMVN file '{cmvn_file}' must have exactly two lines for means and rescales.")
+                data_lines = [line.strip() for line in lines if line.strip().startswith('[')]
+                if len(data_lines) >= 2:
+                    add_shift_line = data_lines[0].replace('[', '').replace(']', '').strip()
+                    add_shift_values = [float(x) for x in add_shift_line.split()]
 
-                # The first line contains AddShift values (negative means)
-                add_shift_line = lines[0].strip().replace('[', '').replace(']', '').strip()
-                add_shift_values = [float(x) for x in add_shift_line.split()]
-
-                # The second line contains Rescale values (inverse stddev)
-                rescale_line = lines[1].strip().replace('[', '').replace(']', '').strip()
-                rescale_values = [float(x) for x in rescale_line.split()]
-
-                means = -np.array(add_shift_values, dtype=np.float32)
-                rescales = np.array(rescale_values, dtype=np.float32)
+                    rescale_line = data_lines[1].replace('[', '').replace(']', '').strip()
+                    rescale_values = [float(x) for x in rescale_line.split()]
             except Exception as e:
-                raise ValueError(f"Failed to parse plain text CMVN file '{cmvn_file}': {e}")
-        
+                logging.warning(f"Could not parse '{cmvn_file}' as plain text format: {e}")
+                pass
+
+        if add_shift_values is None or rescale_values is None:
+            raise ValueError(f"Could not parse CMVN file '{cmvn_file}' with any supported method.")
+
+        # Kaldi's AddShift component contains negative means (-mean).
+        means = -np.array(add_shift_values, dtype=np.float32)
+        # Kaldi's Rescale component is the scaling factor (1/stddev).
+        rescales = np.array(rescale_values, dtype=np.float32)
+
         if means.ndim != 1 or rescales.ndim != 1 or means.shape != rescales.shape:
             raise ValueError(f"CMVN file parsing error in '{cmvn_file}': Mismatch in loaded stats shapes. Means: {means.shape}, Rescales: {rescales.shape}")
 
